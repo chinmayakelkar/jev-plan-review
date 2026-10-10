@@ -56,6 +56,15 @@ describe('toStatements', () => {
     ]);
   });
 
+  it('keeps a short decision the user typed, but not a short fragment of a document', () => {
+    const { statements } = toStatements([
+      { kind: 'prompt', text: 'Use SQLite.' },
+      { kind: 'plan_feedback', text: 'No Redis.' },
+      { kind: 'document', text: 'Tiny bit.', label: 'a.md' },
+    ]);
+    expect(statements.map((statement) => statement.text)).toEqual(['Use SQLite.', 'No Redis.']);
+  });
+
   it('keeps the user’s own words ahead of documents when over the limit', () => {
     const { statements, skipped } = toStatements(
       [

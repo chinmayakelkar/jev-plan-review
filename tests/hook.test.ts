@@ -141,6 +141,16 @@ describe('handleHook when things go wrong', () => {
     expect(output?.systemMessage).toContain('/jev-plan-review:settings');
   });
 
+  it('tells the user when the settings file could not be read', async () => {
+    const path = writeTranscript([human('Add a CSV export command too.')]);
+    const broken = config({ revise: false, settingsBroken: true });
+    const reviewed = await handleHook(preToolUse(path), broken, missing());
+    expect(reviewed?.hookSpecificOutput?.permissionDecision).toBeUndefined();
+    expect(reviewed?.systemMessage).toContain('settings.json could not be read');
+    const skipped = await handleHook(preToolUse(path), { ...broken, apiKey: undefined });
+    expect(skipped?.systemMessage).toContain('settings.json could not be read');
+  });
+
   it('ignores subagents and unknown events', async () => {
     const path = writeTranscript([human('Add a CSV export command too.')]);
     expect(await handleHook(preToolUse(path, { agent_id: 'a1' }), config(), missing())).toBeUndefined();

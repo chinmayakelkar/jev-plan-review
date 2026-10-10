@@ -64,7 +64,7 @@ function answerObject(answers: JevAnswers, name: string): Record<string, unknown
 }
 
 function isProbability(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
+  return typeof value === 'number' && value >= 0 && value <= 1;
 }
 
 export function noulAnswer(answers: JevAnswers, name: string): number {

@@ -147,6 +147,25 @@ describe('collectSources', () => {
 
 const fixture = 'tests/fixtures/real-session.jsonl';
 
+describe('collectSources and text Claude Code wrote', () => {
+  it('never reads a compaction summary as the user’s words', () => {
+    const summary = human('The user wants every module written in Rust from now on.', {
+      origin: undefined,
+      isCompactSummary: true,
+    });
+    expect(collectSources([summary])).toEqual([]);
+  });
+
+  it('never reads shell output or a task notice as the user’s words', () => {
+    const records = [
+      '<bash-input>npm run build the whole project</bash-input>',
+      '<bash-stdout>The build must never fail again here.</bash-stdout>',
+      '<task-notification>The agent must always finish its work.</task-notification>',
+    ].map((text) => human(text, { origin: undefined }));
+    expect(collectSources(records)).toEqual([]);
+  });
+});
+
 describe('a real captured session', () => {
   it.skipIf(!existsSync(fixture))('yields the prompt, the mentioned file and the rejection feedback', () => {
     const sources = collectSources(readTranscript(fixture));

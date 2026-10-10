@@ -48,17 +48,17 @@ function paragraphs(text: string): string[] {
   return found;
 }
 
-function isMeaningful(text: string): boolean {
-  return (text.match(/[A-Za-z]{2,}/g) ?? []).length >= 3;
+function isMeaningful(text: string, minWords: number): boolean {
+  return (text.match(/[A-Za-z]{2,}/g) ?? []).length >= minWords;
 }
 
-export function splitText(text: string): string[] {
+export function splitText(text: string, minWords = 3): string[] {
   const units: string[] = [];
   for (const paragraph of paragraphs(text)) {
     for (const numbered of paragraph.split(INLINE_NUMBER)) {
       for (const sentence of numbered.split(SENTENCE_END)) {
         const unit = sentence.trim();
-        if (isMeaningful(unit)) units.push(truncate(unit, MAX_STATEMENT_CHARS));
+        if (isMeaningful(unit, minWords)) units.push(truncate(unit, MAX_STATEMENT_CHARS));
       }
     }
   }
@@ -72,7 +72,9 @@ export function toStatements(
   const all: Omit<Statement, 'id'>[] = [];
   sources.forEach((source, turn) => {
     const texts =
-      source.kind === 'answer' ? [truncate(source.text, MAX_STATEMENT_CHARS)] : splitText(source.text);
+      source.kind === 'answer'
+        ? [truncate(source.text, MAX_STATEMENT_CHARS)]
+        : splitText(source.text, source.kind === 'document' ? 3 : 1);
     for (const text of texts) {
       all.push({
         source: source.kind,

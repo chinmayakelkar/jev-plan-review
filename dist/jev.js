@@ -27,7 +27,7 @@ function answerObject(answers, name) {
     return answer;
 }
 function isProbability(value) {
-    return typeof value === 'number' && Number.isFinite(value);
+    return typeof value === 'number' && value >= 0 && value <= 1;
 }
 export function noulAnswer(answers, name) {
     const { noul } = answerObject(answers, name);

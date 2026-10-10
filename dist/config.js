@@ -62,26 +62,40 @@ export function withSetting(settings, key, raw) {
 export function settingsPath(dataDir) {
     return join(dataDir, 'settings.json');
 }
-export function loadSettings(dataDir) {
+export function readSettings(dataDir) {
+    const path = settingsPath(dataDir);
+    if (!existsSync(path))
+        return { settings: DEFAULT_SETTINGS, broken: false };
     let saved;
     try {
-        saved = JSON.parse(readFileSync(settingsPath(dataDir), 'utf8'));
+        saved = JSON.parse(readFileSync(path, 'utf8'));
     }
     catch {
-        return DEFAULT_SETTINGS;
+        return { settings: DEFAULT_SETTINGS, broken: true };
     }
-    if (saved === null || typeof saved !== 'object' || Array.isArray(saved))
-        return DEFAULT_SETTINGS;
+    if (saved === null || typeof saved !== 'object' || Array.isArray(saved)) {
+        return { settings: DEFAULT_SETTINGS, broken: true };
+    }
     let settings = DEFAULT_SETTINGS;
+    let broken = false;
     for (const [key, value] of Object.entries(saved)) {
+        if (!(key in DEFAULT_SETTINGS))
+            continue;
+        if (value !== null && typeof value === 'object') {
+            broken = true;
+            continue;
+        }
         try {
             settings = withSetting(settings, key, value);
         }
         catch {
-            continue;
+            broken = true;
         }
     }
-    return settings;
+    return { settings, broken };
+}
+export function loadSettings(dataDir) {
+    return readSettings(dataDir).settings;
 }
 export function saveSettings(dataDir, settings) {
     mkdirSync(dataDir, { recursive: true });
@@ -107,7 +121,7 @@ export function resolveDataDir(env, override) {
 }
 export function resolveConfig(env, settingsEnv = {}, dataDir) {
     const dir = resolveDataDir(env, dataDir);
-    const settings = loadSettings(dir);
+    const { settings, broken } = readSettings(dir);
     const { url, keyVar } = PROVIDERS[settings.provider];
     const apiKey = given(env[keyVar]) ?? given(settingsEnv[keyVar]);
     return {
@@ -117,8 +131,9 @@ export function resolveConfig(env, settingsEnv = {}, dataDir) {
         model: settings.model,
         minConfidence: settings.min_confidence / 100,
         autoReview: settings.auto_review,
-        revise: settings.revise,
+        revise: settings.revise && !broken,
         shareWithClaude: settings.share_with_claude,
         dataDir: dir,
+        ...(broken ? { settingsBroken: true } : {}),
     };
 }

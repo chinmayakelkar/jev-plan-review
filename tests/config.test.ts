@@ -110,6 +110,28 @@ describe('resolveConfig', () => {
   });
 });
 
+describe('resolveConfig with a settings file it cannot fully read', () => {
+  it('turns revise off for the run and says the file is broken', () => {
+    const dir = tempDir();
+    writeFileSync(settingsPath(dir), '{"revise": false,');
+    expect(resolveConfig({}, {}, dir)).toMatchObject({ revise: false, settingsBroken: true });
+    writeFileSync(settingsPath(dir), JSON.stringify({ model: {} }));
+    expect(resolveConfig({}, {}, dir)).toMatchObject({
+      model: 'jev-latest',
+      revise: false,
+      settingsBroken: true,
+    });
+  });
+
+  it('does not call a missing file or an unknown key broken', () => {
+    const dir = tempDir();
+    expect(resolveConfig({}, {}, dir).settingsBroken).toBeUndefined();
+    writeFileSync(settingsPath(dir), JSON.stringify({ extra: 1 }));
+    expect(resolveConfig({}, {}, dir)).toMatchObject({ revise: true });
+    expect(resolveConfig({}, {}, dir).settingsBroken).toBeUndefined();
+  });
+});
+
 describe('readSettingsEnv', () => {
   it('reads env from settings.json in the Claude config directory', () => {
     const dir = tempDir();

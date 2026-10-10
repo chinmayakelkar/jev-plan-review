@@ -4,7 +4,7 @@ export const REPORT_MARKER = '[jev-plan-review report]';
 const REMINDER = /<system-reminder>[\s\S]*?<\/system-reminder>/g;
 const COMMAND = /<command-(?:name|message)>/;
 const COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/;
-const NOISE = /^(?:<local-command-|\[Request interrupted)/;
+const NOISE = /^(?:<local-command-|<bash-(?:input|stdout|stderr)>|<task-notification>|\[Request interrupted)/;
 const USER_SAID = /the user said:\s*/i;
 const INSTRUCTION_FILE = /(?:^|\/)claude(?:\.local)?\.md$/;
 const MENTION = /(?:^|\s)@(?:"([^"]+)"|(\S+))/g;
@@ -106,7 +106,8 @@ export function collectSources(records) {
                 ? content.filter((block) => block.type === 'tool_result')
                 : [];
             if (results.length === 0) {
-                if (!record.isMeta && (record.origin?.kind ?? 'human') === 'human')
+                const written = record.isMeta || record.isCompactSummary || record.isVisibleInTranscriptOnly;
+                if (!written && (record.origin?.kind ?? 'human') === 'human')
                     addPrompt(textOf(content));
                 continue;
             }

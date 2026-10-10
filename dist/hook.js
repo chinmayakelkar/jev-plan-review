@@ -5,6 +5,7 @@ import { runReview } from './run.js';
 import { loadState, saveReport, saveState } from './session.js';
 import { readTranscript } from './transcript.js';
 export const MAX_REVISIONS = 2;
+const BROKEN_SETTINGS = 'settings.json could not be read in full, so defaults were used and no plan was sent back; run /jev-plan-review:settings to fix it.';
 function planText(input) {
     const plan = input.tool_input?.plan;
     if (plan?.trim())
@@ -52,7 +53,8 @@ export async function handleHook(input, config, asker) {
     });
     if (outcome.kind === 'skipped') {
         saveState(config.dataDir, sessionId, remembered);
-        return { systemMessage: `jev-plan-review: skipped — ${outcome.reason}` };
+        const broken = config.settingsBroken ? `. ${BROKEN_SETTINGS}` : '';
+        return { systemMessage: `jev-plan-review: skipped — ${outcome.reason}${broken}` };
     }
     const open = outcome.result.verdicts.filter((verdict) => verdict.actionable);
     if (config.revise && open.length > 0 && state.revisions < MAX_REVISIONS) {
@@ -68,7 +70,7 @@ export async function handleHook(input, config, asker) {
         };
     }
     saveState(config.dataDir, sessionId, { ...remembered, revisions: 0 });
-    const notes = [];
+    const notes = config.settingsBroken ? [BROKEN_SETTINGS] : [];
     if (config.revise && open.length > 0) {
         notes.push(`Still open after ${MAX_REVISIONS} revisions; the plan is shown as it stands.`);
     }

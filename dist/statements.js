@@ -38,16 +38,16 @@ function paragraphs(text) {
     flush();
     return found;
 }
-function isMeaningful(text) {
-    return (text.match(/[A-Za-z]{2,}/g) ?? []).length >= 3;
+function isMeaningful(text, minWords) {
+    return (text.match(/[A-Za-z]{2,}/g) ?? []).length >= minWords;
 }
-export function splitText(text) {
+export function splitText(text, minWords = 3) {
     const units = [];
     for (const paragraph of paragraphs(text)) {
         for (const numbered of paragraph.split(INLINE_NUMBER)) {
             for (const sentence of numbered.split(SENTENCE_END)) {
                 const unit = sentence.trim();
-                if (isMeaningful(unit))
+                if (isMeaningful(unit, minWords))
                     units.push(truncate(unit, MAX_STATEMENT_CHARS));
             }
         }
@@ -57,7 +57,9 @@ export function splitText(text) {
 export function toStatements(sources, max = 150) {
     const all = [];
     sources.forEach((source, turn) => {
-        const texts = source.kind === 'answer' ? [truncate(source.text, MAX_STATEMENT_CHARS)] : splitText(source.text);
+        const texts = source.kind === 'answer'
+            ? [truncate(source.text, MAX_STATEMENT_CHARS)]
+            : splitText(source.text, source.kind === 'document' ? 3 : 1);
         for (const text of texts) {
             all.push({
                 source: source.kind,

@@ -53,6 +53,13 @@ describe('noulAnswer', () => {
   });
 });
 
+describe('noulAnswer with a score outside 0 to 1', () => {
+  it('throws', () => {
+    expect(() => noulAnswer({ q: { noul: 95 } }, 'q')).toThrow('Invalid Jev answer for q');
+    expect(() => noulAnswer({ q: { noul: -3 } }, 'q')).toThrow('Invalid Jev answer for q');
+  });
+});
+
 describe('choiceAnswer', () => {
   const allowed = ['decision', 'requirement'];
 
