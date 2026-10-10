@@ -1,0 +1,143 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { runCli } from '../src/cli.js';
+import { DEFAULT_SETTINGS, loadSettings, saveSettings } from '../src/config.js';
+import { saveState } from '../src/session.js';
+import { fakeJev, human, tempDir, writeTranscript } from './helpers.js';
+
+function setup() {
+  const claude = tempDir();
+  const project = join(claude, 'projects', 'D--proj');
+  mkdirSync(project, { recursive: true });
+  writeTranscript(
+    [human('Use SQLite for the storage layer.'), human('Add a CSV export command too.')],
+    join(project, 'sess.jsonl'),
+  );
+  const dataDir = tempDir();
+  const plan = join(tempDir(), 'plan.md');
+  writeFileSync(plan, 'Store data in SQLite. Add CSV export.');
+  const env = { CLAUDE_CONFIG_DIR: claude, TYPESAFE_API_KEY: 'k' };
+  return { env, dataDir, plan };
+}
+
+describe('runCli', () => {
+  it('prints the coverage table for a plan file', async () => {
+    const { env, dataDir, plan } = setup();
+    const { code, output } = await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', plan], env, fakeJev());
+    expect(code).toBe(0);
+    expect(output).toContain('jev-plan-review: 2 of 2 items reflected in the plan');
+    expect(output).toContain('| 1 | requirement | Use SQLite for the storage layer. | YES | 95% |  |');
+  });
+
+  it('accepts the plan as a bare path and falls back to the last plan-mode plan', async () => {
+    const { env, dataDir, plan } = setup();
+    expect((await runCli(['--session', 'sess', '--data-dir', dataDir, plan], env, fakeJev())).code).toBe(0);
+
+    saveState(dataDir, 'sess', { clearLine: 0, approvedLine: 0, revisions: 0, lastPlanFilePath: plan });
+    const fallback = await runCli(['--session', 'sess', '--data-dir', dataDir], env, fakeJev());
+    expect(fallback.output).toContain('2 of 2 items reflected');
+  });
+
+  it('checks only what came after an approved plan unless told otherwise', async () => {
+    const { env, dataDir, plan } = setup();
+    saveState(dataDir, 'sess', { clearLine: 1, approvedLine: 2, revisions: 0 });
+
+    const windowed = await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', plan], env, fakeJev());
+    expect(windowed.code).toBe(0);
+    expect(windowed.output).toContain('skipped — the user has said nothing to check');
+    expect(windowed.output).toContain('--since-clear');
+
+    const sinceClear = await runCli(
+      ['--session', 'sess', '--data-dir', dataDir, '--plan', plan, '--since-clear'],
+      env,
+      fakeJev(),
+    );
+    expect(sinceClear.output).toContain('1 of 1 items reflected');
+    expect(sinceClear.output).toContain('Add a CSV export command too.');
+  });
+
+  it('uses the saved confidence threshold', async () => {
+    const { env, dataDir, plan } = setup();
+    const unsure = fakeJev({ covered: () => 0.35 });
+    const base = ['--session', 'sess', '--data-dir', dataDir, '--plan', plan];
+
+    expect((await runCli(base, env, unsure)).output).toContain('| NO | 65% | missing, unsure |');
+
+    saveSettings(dataDir, { ...DEFAULT_SETTINGS, min_confidence: 60 });
+    expect((await runCli(base, env, unsure)).output).toContain('| NO | 65% | missing |');
+  });
+
+  it('explains what is wrong when it cannot run', async () => {
+    const { env, dataDir, plan } = setup();
+    expect((await runCli([], env)).output).toContain('usage:');
+    expect((await runCli(['--session', '${CLAUDE_SESSION_ID}'], env)).code).toBe(1);
+    expect((await runCli(['--session', 'sess', '--data-dir', dataDir], env)).output).toContain('No plan file given');
+    expect((await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', 'absent.md'], env)).output).toContain(
+      'Plan file not found: absent.md',
+    );
+    expect((await runCli(['--session', 'nope', '--data-dir', dataDir, '--plan', plan], env)).output).toContain(
+      'No transcript found for session nope',
+    );
+  });
+});
+
+describe('runCli settings', () => {
+  it('shows the defaults and says when the key is not set', async () => {
+    const dataDir = tempDir();
+    const { code, output } = await runCli(['settings', '--data-dir', dataDir], { CLAUDE_CONFIG_DIR: tempDir() });
+    expect(code).toBe(0);
+    expect(output).toMatch(/provider\s+typesafe/);
+    expect(output).toMatch(/min_confidence\s+80/);
+    expect(output).toMatch(/auto_review\s+on/);
+    expect(output).toMatch(/revise\s+on/);
+    expect(output).toMatch(/share_with_claude\s+on/);
+    expect(output).toMatch(/model\s+jev-latest/);
+    expect(output).toContain('TYPESAFE_API_KEY is not set');
+    expect(output).toContain('Do not paste the key into the chat');
+  });
+
+  it('changes several settings at once and keeps them', async () => {
+    const dataDir = tempDir();
+    const env = { CLAUDE_CONFIG_DIR: tempDir(), OPENROUTER_API_KEY: 'or-key' };
+    const { code, output } = await runCli(
+      ['settings', '--data-dir', dataDir, '--set', 'provider=openrouter', '--set', 'min_confidence=90', '--set', 'revise=off'],
+      env,
+    );
+    expect(code).toBe(0);
+    expect(output).toMatch(/provider\s+openrouter/);
+    expect(output).toMatch(/revise\s+off/);
+    expect(output).toContain('OPENROUTER_API_KEY is set');
+    expect(output).not.toContain('or-key');
+    expect(loadSettings(dataDir)).toEqual({
+      ...DEFAULT_SETTINGS,
+      provider: 'openrouter',
+      min_confidence: 90,
+      revise: false,
+    });
+  });
+
+  it('finds the key in settings.json too', async () => {
+    const claude = tempDir();
+    writeFileSync(join(claude, 'settings.json'), JSON.stringify({ env: { TYPESAFE_API_KEY: 'k' } }));
+    const { output } = await runCli(['settings', '--data-dir', tempDir()], { CLAUDE_CONFIG_DIR: claude });
+    expect(output).toContain('TYPESAFE_API_KEY is set');
+  });
+
+  it('changes nothing when one value is bad', async () => {
+    const dataDir = tempDir();
+    const env = { CLAUDE_CONFIG_DIR: tempDir() };
+    const bad = await runCli(
+      ['settings', '--data-dir', dataDir, '--set', 'revise=off', '--set', 'min_confidence=20'],
+      env,
+    );
+    expect(bad).toEqual({
+      code: 1,
+      output: 'Nothing was changed: min_confidence must be a number from 50 to 100',
+    });
+    expect(loadSettings(dataDir).revise).toBe(true);
+
+    const shapeless = await runCli(['settings', '--data-dir', dataDir, '--set', 'revise'], env);
+    expect(shapeless.output).toBe('Nothing was changed: expected <name>=<value>, got "revise"');
+  });
+});
