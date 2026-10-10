@@ -1,0 +1,16 @@
+{
+  "name": "jev-plan-review",
+  "description": "Plan review for Claude Code, using TypeSafe Jev.",
+  "owner": {
+    "name": "chinmayakelkar"
+  },
+  "plugins": [
+    {
+      "name": "jev-plan-review",
+      "source": "./",
+      "description": "Checks a plan against what you said while it was prepared, using TypeSafe's Jev model.",
+      "version": "0.1.0",
+      "license": "MIT"
+    }
+  ]
+}

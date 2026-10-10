@@ -1,0 +1,9 @@
+{
+  "name": "jev-plan-review",
+  "version": "0.1.0",
+  "description": "Checks a plan against what you said while it was prepared, using TypeSafe's Jev model.",
+  "author": {
+    "name": "chinmayakelkar"
+  },
+  "license": "MIT"
+}
