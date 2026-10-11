@@ -14,6 +14,8 @@ function config(overrides: Partial<Config> = {}): Config {
     revise: true,
     shareWithClaude: true,
     maxRevisions: 2,
+    maxStatements: 150,
+    showInconclusive: true,
     dataDir: tempDir(),
     ...overrides,
   };
@@ -38,6 +40,20 @@ describe('runReview', () => {
       'Add a CSV export command too.',
     ]);
     expect(outcome.overLimit).toBe(0);
+  });
+
+  it('checks no more statements than max_statements, and says how many were left', async () => {
+    const outcome = await runReview({
+      plan: 'Add CSV export.',
+      transcriptPath: transcript(),
+      windowStart: 0,
+      config: config({ maxStatements: 1 }),
+      asker: fakeJev(),
+    });
+    expect(outcome.kind).toBe('reviewed');
+    if (outcome.kind !== 'reviewed') return;
+    expect(outcome.result.verdicts.map((verdict) => verdict.text)).toEqual(['Add a CSV export command too.']);
+    expect(outcome.overLimit).toBe(1);
   });
 
   it('only looks at what was said after the window start', async () => {

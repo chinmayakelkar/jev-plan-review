@@ -32,6 +32,8 @@ const SETTING_HELP: Record<keyof Settings, string> = {
   revise: 'on or off: send a plan back to Claude when items are missing or contradicted',
   share_with_claude: 'on or off: let Claude read the report',
   max_revisions: '1 or more: how many times revise may send one plan back',
+  max_statements: '1 or more: how many statements one review may check',
+  show_inconclusive: 'on or off: show items Jev was unsure of',
   model: 'the Jev model name',
 };
 
@@ -151,7 +153,7 @@ export async function runCli(
     outcome.overLimit > 0
       ? `\n\n${outcome.overLimit} statement(s) were over the limit and not checked.`
       : '';
-  return { code: 0, output: `${renderMarkdown(outcome.result)}${overLimit}` };
+  return { code: 0, output: `${renderMarkdown(outcome.result, { showInconclusive: config.showInconclusive })}${overLimit}` };
 }
 
 export async function main(): Promise<void> {

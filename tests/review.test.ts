@@ -14,7 +14,6 @@ const item: Item = {
   text: 'Use Postgres for storage.',
   turn: 0,
   kind: 'decision',
-  kindConfidence: 0.9,
 };
 
 describe('decide', () => {
@@ -108,6 +107,75 @@ describe('review', () => {
     ]);
     expect(result.statements).toBe(3);
     expect(result.ignored).toBe(2);
+  });
+
+  it('asks no yes/no question about a statement it could not classify', async () => {
+    const statements = statementsOf(
+      '- Use Postgres for the storage layer\n- Postgres maybe for the other thing\n- Thanks for all the help today',
+    );
+    const kinds: Record<string, string> = { s1: 'decision', s2: 'not_actionable', s3: 'not_actionable' };
+    const probabilities: Record<string, Record<string, number>> = {
+      s1: { decision: 0.7, requirement: 0.25, not_actionable: 0.05 },
+      s2: { requirement: 0.35, constraint: 0.25, not_actionable: 0.4 },
+      s3: { requirement: 0.1, not_actionable: 0.9 },
+    };
+    const seen: Seen[] = [];
+    const result = await review(
+      'Store data in Postgres.',
+      statements,
+      fakeJev({ kind: (id) => kinds[id], probabilities: (id) => probabilities[id] }, seen),
+    );
+    expect(result.verdicts.map((verdict) => verdict.id)).toEqual(['s1']);
+    expect(result.unclear).toEqual([{ ...statements[1], confidence: 0.6 }]);
+    expect(result.ignored).toBe(1);
+    expect(seen[1].questions).toEqual(['covered_s1', 'contradicted_s1']);
+  });
+
+  it('checks a statement Jev is sure is real but torn between two kinds', async () => {
+    const result = await review(
+      'Store data in Postgres.',
+      statementsOf('Use Postgres for the storage layer.'),
+      fakeJev({
+        kind: () => 'requirement',
+        probabilities: () => ({ requirement: 0.5, constraint: 0.45, not_actionable: 0.05 }),
+      }),
+    );
+    expect(result.verdicts).toHaveLength(1);
+    expect(result.verdicts[0]).toMatchObject({ kind: 'requirement' });
+    expect(result.unclear).toEqual([]);
+  });
+
+  it('goes by the confidence in the label when Jev gives no probabilities', async () => {
+    const statements = statementsOf('- Use Postgres for the storage layer\n- Keep the tool small please');
+    const result = await review(
+      'Store data in Postgres.',
+      statements,
+      fakeJev({ kindConfidence: (id) => (id === 's1' ? 0.85 : 0.6) }),
+    );
+    expect(result.verdicts.map((verdict) => verdict.id)).toEqual(['s1']);
+    expect(result.unclear).toEqual([{ ...statements[1], confidence: 0.6 }]);
+  });
+
+  it('leaves a statement unclear when no real kind can be named for it', async () => {
+    const statements = statementsOf('Use Postgres for the storage layer.');
+    const result = await review(
+      'Store data in Postgres.',
+      statements,
+      fakeJev({ kind: () => 'not_actionable', kindConfidence: () => 0.1 }),
+    );
+    expect(result.verdicts).toEqual([]);
+    expect(result.unclear).toEqual([{ ...statements[0], confidence: 0.9 }]);
+  });
+
+  it('uses the confidence threshold to decide what is unclear', async () => {
+    const result = await review(
+      'Store data in Postgres.',
+      statementsOf('Use Postgres for the storage layer.'),
+      fakeJev({ kindConfidence: () => 0.6 }),
+      { minConfidence: 0.6 },
+    );
+    expect(result.verdicts).toHaveLength(1);
+    expect(result.unclear).toEqual([]);
   });
 
   it('answers each item on its own with Jev’s confidence', async () => {

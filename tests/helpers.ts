@@ -58,6 +58,8 @@ export type Seen = { state: unknown; questions: string[] };
 
 export interface Script {
   kind?: (id: string) => string;
+  kindConfidence?: (id: string) => number;
+  probabilities?: (id: string) => Record<string, number> | undefined;
   covered?: (id: string, plan: string) => number;
   contradicted?: (id: string, plan: string) => number;
 }
@@ -74,7 +76,16 @@ export function fakeJev(script: Script = {}, seen: Seen[] = []): JevAsker {
           const type = name.slice(0, split);
           const id = name.slice(split + 1);
           if (type === 'kind') {
-            return [name, { choice: script.kind?.(id) ?? 'requirement', confidence: 0.9 }];
+            const choice = script.kind?.(id) ?? 'requirement';
+            const probabilities = script.probabilities?.(id);
+            return [
+              name,
+              {
+                choice,
+                confidence: probabilities?.[choice] ?? script.kindConfidence?.(id) ?? 0.9,
+                ...(probabilities ? { probabilities } : {}),
+              },
+            ];
           }
           if (type === 'covered') return [name, { noul: script.covered?.(id, plan) ?? 0.95 }];
           return [name, { noul: script.contradicted?.(id, plan) ?? 0.02 }];

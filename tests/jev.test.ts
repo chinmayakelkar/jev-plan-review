@@ -67,6 +67,17 @@ describe('choiceAnswer', () => {
     expect(choiceAnswer({ q: { choice: 'decision', confidence: 0.8 } }, 'q', allowed)).toEqual({
       choice: 'decision',
       confidence: 0.8,
+      probabilities: {},
+    });
+  });
+
+  it('passes on the probability of each offered option, and nothing else', () => {
+    const answers = {
+      q: { choice: 'decision', confidence: 0.6, probabilities: { decision: 0.6, requirement: 0.3, other: 0.1, bad: 'x' } },
+    };
+    expect(choiceAnswer(answers, 'q', [...allowed, 'bad']).probabilities).toEqual({
+      decision: 0.6,
+      requirement: 0.3,
     });
   });
 

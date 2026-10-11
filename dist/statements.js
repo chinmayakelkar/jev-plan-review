@@ -5,7 +5,23 @@ const HEADING = /^\s*#+\s+/;
 const DASH_BULLET = /^\s*[-*+•]\s+/;
 const LIST_START = /^\s*(?:[-*+•]|\d+[.)])\s+/;
 const INLINE_NUMBER = /\s+(?=\d+\)\s)/;
-const SENTENCE_END = /(?<=[.!?])\s+(?=[A-Z0-9"'([])/;
+const SENTENCES = new Intl.Segmenter('en', { granularity: 'sentence' });
+const ABBREVIATION = /(?:^|[\s(["'])(?:(?:[a-z]\.){2,}|\d+\.|(?:eg|ie|vs|cf|viz|ex|approx|incl|excl|mr|mrs|ms|dr|prof)\.)$/i;
+// The segmenter knows no abbreviations or list numbers, so a piece that ends on one is joined to the next.
+function sentences(text) {
+    const found = [];
+    let held = '';
+    for (const { segment } of SENTENCES.segment(text)) {
+        held += segment;
+        if (ABBREVIATION.test(held.trimEnd()))
+            continue;
+        found.push(held);
+        held = '';
+    }
+    if (held)
+        found.push(held);
+    return found;
+}
 function paragraphs(text) {
     const found = [];
     let current = '';
@@ -45,7 +61,7 @@ export function splitText(text, minWords = 3) {
     const units = [];
     for (const paragraph of paragraphs(text)) {
         for (const numbered of paragraph.split(INLINE_NUMBER)) {
-            for (const sentence of numbered.split(SENTENCE_END)) {
+            for (const sentence of sentences(numbered)) {
                 const unit = sentence.trim();
                 if (isMeaningful(unit, minWords))
                     units.push(truncate(unit, MAX_STATEMENT_CHARS));
@@ -72,7 +88,8 @@ export function toStatements(sources, max = 150) {
     });
     const own = all.filter((statement) => statement.source !== 'document');
     const documents = all.filter((statement) => statement.source === 'document');
-    const kept = new Set([...own, ...documents].slice(0, max));
+    const newest = own.slice(-max);
+    const kept = new Set([...newest, ...documents.slice(0, max - newest.length)]);
     const statements = all
         .filter((statement) => kept.has(statement))
         .map((statement, index) => ({ id: `s${index + 1}`, ...statement }));

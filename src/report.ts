@@ -33,33 +33,57 @@ export function summaryLine(result: ReviewResult): string {
   const parts = [`${count('reflected')} of ${result.verdicts.length} items reflected in the plan`];
   if (count('missing')) parts.push(`${count('missing')} missing`);
   if (count('contradicted')) parts.push(`${count('contradicted')} contradicted`);
+  if (result.unclear.length) parts.push(`${result.unclear.length} not checked`);
   const unsure = result.verdicts.filter((verdict) => !verdict.conclusive).length;
   return `jev-plan-review: ${parts.join(', ')}${unsure ? ` (${unsure} unsure)` : ''}`;
 }
 
+interface Row {
+  answer: string;
+  confidence: number;
+  kind: string;
+  text: string;
+  note: string;
+}
+
+function rowsOf(result: ReviewResult, showInconclusive: boolean): { rows: Row[]; hidden?: string } {
+  const sure = sortVerdicts(result.verdicts)
+    .filter((verdict) => showInconclusive || verdict.conclusive)
+    .map((verdict) => ({ ...verdict, answer: yesNo(verdict), note: noteFor(verdict) }));
+  if (showInconclusive) {
+    const unclear = [...result.unclear]
+      .sort((a, b) => b.confidence - a.confidence)
+      .map((statement) => ({ ...statement, answer: '?', kind: 'unclear', note: 'not checked' }));
+    return { rows: [...sure, ...unclear] };
+  }
+  const hidden = result.verdicts.length - sure.length + result.unclear.length;
+  return {
+    rows: sure,
+    ...(hidden ? { hidden: `${hidden} inconclusive item(s) are hidden; show_inconclusive is off.` } : {}),
+  };
+}
+
+const NOTHING = 'Nothing the user said needed to be reflected.';
+
 export function renderText(
   result: ReviewResult,
-  options: { maxChars?: number; note?: string; reportPath?: string } = {},
+  options: { maxChars?: number; note?: string; reportPath?: string; showInconclusive?: boolean } = {},
 ): string {
   const pointer = options.reportPath ? `; full report: ${options.reportPath}` : '';
   const maxChars = options.maxChars ?? 9000;
+  const { rows, hidden } = rowsOf(result, options.showInconclusive ?? true);
   const lines = [summaryLine(result)];
   if (options.note) lines.push(options.note);
-  if (result.verdicts.length === 0) {
-    lines.push('Nothing the user said needed to be reflected.');
-    return lines.join('\n');
-  }
-  const rows = sortVerdicts(result.verdicts).map((verdict) => {
-    const note = noteFor(verdict);
-    return `${yesNo(verdict).padEnd(3)} ${percent(verdict.confidence).padStart(4)}  ${verdict.kind.padEnd(11)}  ${truncate(verdict.text, 90)}${note ? `  [${note}]` : ''}`;
-  });
+  if (hidden) lines.push(hidden);
+  else if (rows.length === 0) lines.push(NOTHING);
   const reserve = 20 + pointer.length;
   let used = lines.join('\n').length;
   let shown = 0;
   for (const row of rows) {
-    if (used + row.length + 1 > maxChars - reserve) break;
-    lines.push(row);
-    used += row.length + 1;
+    const line = `${row.answer.padEnd(3)} ${percent(row.confidence).padStart(4)}  ${row.kind.padEnd(11)}  ${truncate(row.text, 90)}${row.note ? `  [${row.note}]` : ''}`;
+    if (used + line.length + 1 > maxChars - reserve) break;
+    lines.push(line);
+    used += line.length + 1;
     shown += 1;
   }
   if (shown < rows.length) lines.push(`… and ${rows.length - shown} more${pointer}`);
@@ -70,21 +94,24 @@ function cell(text: string): string {
   return text.replace(/\s+/g, ' ').replace(/\|/g, '\\|');
 }
 
-export function renderMarkdown(result: ReviewResult): string {
+export function renderMarkdown(
+  result: ReviewResult,
+  options: { showInconclusive?: boolean } = {},
+): string {
+  const { rows, hidden } = rowsOf(result, options.showInconclusive ?? true);
   const lines = [summaryLine(result), ''];
-  if (result.verdicts.length === 0) {
-    lines.push('Nothing the user said needed to be reflected.');
-  } else {
+  if (rows.length > 0) {
     lines.push(
       '| # | Kind | What the user said | In the plan? | Confidence | Note |',
       '| --- | --- | --- | --- | --- | --- |',
     );
-    sortVerdicts(result.verdicts).forEach((verdict, index) => {
+    rows.forEach((row, index) => {
       lines.push(
-        `| ${index + 1} | ${verdict.kind} | ${cell(truncate(verdict.text, 200))} | ${yesNo(verdict)} | ${percent(verdict.confidence)} | ${noteFor(verdict)} |`,
+        `| ${index + 1} | ${row.kind} | ${cell(truncate(row.text, 200))} | ${row.answer} | ${percent(row.confidence)} | ${row.note} |`,
       );
     });
-  }
+  } else if (!hidden) lines.push(NOTHING);
+  if (hidden) lines.push('', hidden);
   if (result.ignored > 0) {
     lines.push(
       '',
@@ -113,11 +140,15 @@ export function revisionRequest(result: ReviewResult, revision: number, max: num
   return lines.join('\n');
 }
 
-export function claudeContext(result: ReviewResult, reportPath: string): string {
+export function claudeContext(
+  result: ReviewResult,
+  reportPath: string,
+  showInconclusive = true,
+): string {
   return [
     `${REPORT_MARKER} This plan was checked against what the user said while it was prepared. The report below is for the user to act on. Do not change the plan because of it unless the user asks.`,
     '',
-    renderText(result, { maxChars: 8000, reportPath }),
+    renderText(result, { maxChars: 8000, reportPath, showInconclusive }),
     '',
     `Full report: ${reportPath}`,
   ].join('\n');

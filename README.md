@@ -46,9 +46,12 @@ can change your mind at any time with `/jev-plan-review:settings`.
    numbered item or sentence. The assistant's message just before your reply is
    kept beside it as context, so a short answer still makes sense.
 3. **Classify.** Jev sorts each statement: requirement, constraint, decision,
-   assumption, preference, superseded, or not actionable. Statements you later
-   reversed, and questions or thanks, are set aside.
-4. **Verify.** For each remaining item Jev answers two `noul` questions with
+   assumption, preference, superseded, or not actionable. The chances it gives
+   the five real kinds are added up. At your confidence threshold or above,
+   the statement goes on. Below 50% it is set aside, as a question, thanks, or
+   something you later reversed. In between it is *unclear*: it is listed as
+   `not checked` and no further question is asked about it.
+4. **Verify.** For each item that went on, Jev answers two `noul` questions with
    the plan in front of it: the plan reflects this, and the plan conflicts
    with this. A plan too long for one request is checked in parts.
 5. **Decide.** Conflict at 50% or more means *contradicted*. Otherwise reflect
@@ -124,6 +127,8 @@ You can also name the change directly:
 | `auto_review` | `on` | Review every plan-mode plan before it is shown. When off, only the review command runs a check. |
 | `revise` | `on` | Send a plan back to Claude when items are missing or contradicted. When off, the plugin only reports and you decide what to do. |
 | `max_revisions` | `2` | How many times revise may send one plan back. Any whole number from 1 up. Each one costs another revision by Claude and another Jev review before you see the plan. |
+| `max_statements` | `150` | How many statements one review may check. Any whole number from 1 up. More statements mean more Jev questions and a longer wait. |
+| `show_inconclusive` | `on` | Show the rows Jev was unsure of: `unsure` answers and `not checked` statements. When off they are left out of the table and the saved report, and one line says how many were hidden. |
 | `share_with_claude` | `on` | Give Claude the same table you see. |
 | `model` | `jev-latest` | Jev model name. Both providers accept it. |
 
@@ -148,11 +153,16 @@ approved.
 
 - A confidence score is not a proof. The table tells you where to look; you
   still decide.
-- Statements are split by simple rules. Text inside fenced code blocks is
-  skipped, and a sentence that only makes sense with its neighbours may be
-  judged poorly.
-- At most 150 statements are checked per review. Your own words are kept
-  ahead of attached documents when there are more.
+- Statements are split at bullets, numbered items and sentence ends. Text
+  inside fenced code blocks is skipped. Common abbreviations such as `e.g.`
+  and `vs.` do not end a sentence, but an unusual one, or an initial in a
+  name, still can. A list numbered `1.` `2.` on one line stays as one
+  statement, and so does a sentence that ends in a bare number. Sentences
+  that begin with a small letter are not split apart. A sentence that only
+  makes sense with its neighbours may be judged poorly.
+- At most `max_statements` statements are checked per review. When there
+  are more, your own words are kept ahead of attached documents, and your
+  newest words ahead of your oldest.
 - Images are not read.
 - The transcript file layout is not a published Claude Code contract. All of
   the reading is in `src/transcript.ts`, so a change there is a small fix.

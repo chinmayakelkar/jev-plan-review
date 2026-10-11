@@ -36,18 +36,24 @@ export function noulAnswer(answers, name) {
     return noul;
 }
 export function choiceAnswer(answers, name, allowed) {
-    const { choice, confidence, probabilities } = answerObject(answers, name);
+    const answer = answerObject(answers, name);
+    const { choice } = answer;
     if (typeof choice !== 'string' || !allowed.includes(choice)) {
         throw new Error(`Invalid Jev answer for ${name}`);
     }
-    if (isProbability(confidence))
-        return { choice, confidence };
-    const fallback = probabilities !== null && typeof probabilities === 'object'
-        ? probabilities[choice]
-        : undefined;
-    if (!isProbability(fallback))
+    const given = answer.probabilities !== null && typeof answer.probabilities === 'object'
+        ? answer.probabilities
+        : {};
+    const probabilities = {};
+    for (const option of allowed) {
+        const value = given[option];
+        if (isProbability(value))
+            probabilities[option] = value;
+    }
+    const confidence = isProbability(answer.confidence) ? answer.confidence : probabilities[choice];
+    if (confidence === undefined)
         throw new Error(`Invalid Jev answer for ${name}`);
-    return { choice, confidence: fallback };
+    return { choice, confidence, probabilities };
 }
 export function jevClient(options) {
     const fetcher = options.fetch ?? fetch;

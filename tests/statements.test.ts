@@ -33,6 +33,49 @@ describe('splitText', () => {
     expect(splitText(text)).toEqual(['Storage rules for the project', 'Use Postgres for storage.']);
   });
 
+  it('keeps an abbreviation inside its sentence', () => {
+    expect(splitText('Use a database, e.g. Postgres for storage. Add tests too.')).toEqual([
+      'Use a database, e.g. Postgres for storage.',
+      'Add tests too.',
+    ]);
+    expect(splitText('Compare Postgres vs. Redis for the cache.')).toEqual([
+      'Compare Postgres vs. Redis for the cache.',
+    ]);
+    expect(splitText('Ask Dr. Smith about the U.S. Postal rules first.')).toEqual([
+      'Ask Dr. Smith about the U.S. Postal rules first.',
+    ]);
+  });
+
+  it('keeps a number or a bracket that follows a stop with its sentence', () => {
+    expect(splitText('It takes approx. 5 seconds. That is too slow.')).toEqual([
+      'It takes approx. 5 seconds.',
+      'That is too slow.',
+    ]);
+    expect(splitText('Support CSV, JSON, etc. (see the notes). Never use Excel.')).toEqual([
+      'Support CSV, JSON, etc. (see the notes).',
+      'Never use Excel.',
+    ]);
+  });
+
+  it('keeps a list numbered with dots on one line together', () => {
+    expect(splitText('Do these: 1. Add csv export 2. Add json export')).toEqual([
+      'Do these: 1. Add csv export 2. Add json export',
+    ]);
+    expect(splitText('Bump it to v2.0. Then update the docs.')).toEqual([
+      'Bump it to v2.0.',
+      'Then update the docs.',
+    ]);
+  });
+
+  it('does not take an ordinary short word for an abbreviation', () => {
+    expect(splitText('I said no. Use Redis.', 1)).toEqual(['I said no.', 'Use Redis.']);
+    expect(splitText('Go with option A. Also keep B.', 1)).toEqual(['Go with option A.', 'Also keep B.']);
+    expect(splitText('Support CSV, JSON, etc. Never use Excel.')).toEqual([
+      'Support CSV, JSON, etc.',
+      'Never use Excel.',
+    ]);
+  });
+
   it('cuts a very long statement', () => {
     const [only] = splitText(`must ${'verylongword '.repeat(80)}`);
     expect(only.length).toBe(500);
@@ -78,6 +121,22 @@ describe('toStatements', () => {
       ['s1', 'first rule from the document'],
       ['s2', 'first thing the user typed'],
       ['s3', 'second thing the user typed'],
+    ]);
+  });
+
+  it('keeps the newest of the user’s own words when they alone are over the limit', () => {
+    const { statements, skipped } = toStatements(
+      [
+        { kind: 'prompt', text: '- first thing the user typed\n- second thing the user typed' },
+        { kind: 'document', text: 'A rule from the document.', label: 'd.md' },
+        { kind: 'prompt', text: 'Third thing the user typed.' },
+      ],
+      2,
+    );
+    expect(skipped).toBe(2);
+    expect(statements.map((statement) => [statement.id, statement.text])).toEqual([
+      ['s1', 'second thing the user typed'],
+      ['s2', 'Third thing the user typed.'],
     ]);
   });
 });

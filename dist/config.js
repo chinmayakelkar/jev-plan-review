@@ -17,6 +17,8 @@ export const DEFAULT_SETTINGS = {
     revise: true,
     share_with_claude: true,
     max_revisions: 2,
+    max_statements: 150,
+    show_inconclusive: true,
     model: DEFAULT_MODEL,
 };
 export function given(value) {
@@ -51,13 +53,15 @@ export function withSetting(settings, key, raw) {
         case 'auto_review':
         case 'revise':
         case 'share_with_claude':
+        case 'show_inconclusive':
             return { ...settings, [key]: toggle(key, value) };
-        case 'max_revisions': {
+        case 'max_revisions':
+        case 'max_statements': {
             const count = Number(value || NaN);
             if (!(Number.isInteger(count) && count >= 1)) {
-                throw new Error('max_revisions must be a whole number, 1 or more');
+                throw new Error(`${key} must be a whole number, 1 or more`);
             }
-            return { ...settings, max_revisions: count };
+            return { ...settings, [key]: count };
         }
         case 'model':
             if (!text)
@@ -142,6 +146,8 @@ export function resolveConfig(env, settingsEnv = {}, dataDir) {
         revise: settings.revise && !broken,
         shareWithClaude: settings.share_with_claude,
         maxRevisions: settings.max_revisions,
+        maxStatements: settings.max_statements,
+        showInconclusive: settings.show_inconclusive,
         dataDir: dir,
         ...(broken ? { settingsBroken: true } : {}),
     };

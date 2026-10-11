@@ -31,6 +31,8 @@ describe('settings', () => {
       revise: true,
       share_with_claude: true,
       max_revisions: 2,
+      max_statements: 150,
+      show_inconclusive: true,
       model: 'jev-latest',
     });
   });
@@ -64,6 +66,11 @@ describe('settings', () => {
         'max_revisions must be a whole number, 1 or more',
       );
     }
+    expect(withSetting(DEFAULT_SETTINGS, 'max_statements', '400').max_statements).toBe(400);
+    expect(() => withSetting(DEFAULT_SETTINGS, 'max_statements', '0')).toThrow(
+      'max_statements must be a whole number, 1 or more',
+    );
+    expect(withSetting(DEFAULT_SETTINGS, 'show_inconclusive', 'off').show_inconclusive).toBe(false);
     expect(() => withSetting(DEFAULT_SETTINGS, 'model', ' ')).toThrow('model must not be empty');
     expect(() => withSetting(DEFAULT_SETTINGS, 'colour', 'blue')).toThrow('unknown setting colour');
   });
@@ -91,6 +98,8 @@ describe('resolveConfig', () => {
       revise: true,
       shareWithClaude: true,
       maxRevisions: 2,
+      maxStatements: 150,
+      showInconclusive: true,
       dataDir: dir,
     });
     expect(resolveConfig({ CLAUDE_PLUGIN_DATA: dir }).dataDir).toBe(dir);
@@ -99,7 +108,14 @@ describe('resolveConfig', () => {
 
   it('reads the saved settings and the key of the chosen provider', () => {
     const dir = tempDir();
-    saveSettings(dir, { ...DEFAULT_SETTINGS, provider: 'openrouter', min_confidence: 70, revise: false });
+    saveSettings(dir, {
+      ...DEFAULT_SETTINGS,
+      provider: 'openrouter',
+      min_confidence: 70,
+      revise: false,
+      max_statements: 40,
+      show_inconclusive: false,
+    });
     const env = { TYPESAFE_API_KEY: 'ts-key', OPENROUTER_API_KEY: 'or-key' };
     expect(resolveConfig(env, {}, dir)).toMatchObject({
       apiKey: 'or-key',
@@ -107,6 +123,8 @@ describe('resolveConfig', () => {
       baseUrl: 'https://openrouter.ai/api/v1/systemone',
       minConfidence: 0.7,
       revise: false,
+      maxStatements: 40,
+      showInconclusive: false,
     });
   });
 

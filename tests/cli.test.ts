@@ -68,6 +68,18 @@ describe('runCli', () => {
     expect((await runCli(base, env, unsure)).output).toContain('| NO | 65% | missing |');
   });
 
+  it('hides what Jev was unsure of when show_inconclusive is off', async () => {
+    const { env, dataDir, plan } = setup();
+    saveSettings(dataDir, { ...DEFAULT_SETTINGS, show_inconclusive: false });
+    const { output } = await runCli(
+      ['--session', 'sess', '--data-dir', dataDir, '--plan', plan],
+      env,
+      fakeJev({ covered: () => 0.35 }),
+    );
+    expect(output).toContain('2 inconclusive item(s) are hidden; show_inconclusive is off.');
+    expect(output).not.toContain('| NO |');
+  });
+
   it('explains what is wrong when it cannot run', async () => {
     const { env, dataDir, plan } = setup();
     expect((await runCli([], env)).output).toContain('usage:');
@@ -93,6 +105,8 @@ describe('runCli settings', () => {
     expect(output).toMatch(/revise\s+on/);
     expect(output).toMatch(/share_with_claude\s+on/);
     expect(output).toMatch(/max_revisions\s+2/);
+    expect(output).toMatch(/max_statements\s+150/);
+    expect(output).toMatch(/show_inconclusive\s+on/);
     expect(output).toMatch(/model\s+jev-latest/);
     expect(output).toContain('TYPESAFE_API_KEY is not set');
     expect(output).toContain('Do not paste the key into the chat');

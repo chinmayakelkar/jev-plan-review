@@ -27,6 +27,8 @@ function config(overrides: Partial<Config> = {}): Config {
     revise: true,
     shareWithClaude: true,
     maxRevisions: 2,
+    maxStatements: 150,
+    showInconclusive: true,
     dataDir: tempDir(),
     ...overrides,
   };
@@ -178,6 +180,20 @@ describe('handleHook with revise on', () => {
     const output = await handleHook(preToolUse(path), config(), fakeJev({ covered: () => 0.35 }));
     expect(output?.hookSpecificOutput?.permissionDecision).toBeUndefined();
     expect(output?.systemMessage).toContain('[missing, unsure]');
+  });
+
+  it('hides what Jev was unsure of when show_inconclusive is off', async () => {
+    const path = writeTranscript([human('Add a CSV export command too.')]);
+    const settings = config({ showInconclusive: false });
+    const output = await handleHook(preToolUse(path), settings, fakeJev({ covered: () => 0.35 }));
+    const hidden = '1 inconclusive item(s) are hidden; show_inconclusive is off.';
+    expect(output?.systemMessage).toContain(hidden);
+    expect(output?.systemMessage).not.toContain('Add a CSV export');
+    expect(output?.hookSpecificOutput?.additionalContext).toContain(hidden);
+    expect(output?.hookSpecificOutput?.additionalContext).not.toContain('Add a CSV export');
+    const report = readFileSync(join(settings.dataDir, 'reports', 'sess.md'), 'utf8');
+    expect(report).toContain(hidden);
+    expect(report).not.toContain('Add a CSV export');
   });
 
   it('lets a fully reflected plan through', async () => {

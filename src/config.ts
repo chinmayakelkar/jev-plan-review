@@ -21,6 +21,8 @@ export interface Settings {
   revise: boolean;
   share_with_claude: boolean;
   max_revisions: number;
+  max_statements: number;
+  show_inconclusive: boolean;
   model: string;
 }
 
@@ -31,6 +33,8 @@ export const DEFAULT_SETTINGS: Settings = {
   revise: true,
   share_with_claude: true,
   max_revisions: 2,
+  max_statements: 150,
+  show_inconclusive: true,
   model: DEFAULT_MODEL,
 };
 
@@ -44,6 +48,8 @@ export interface Config {
   revise: boolean;
   shareWithClaude: boolean;
   maxRevisions: number;
+  maxStatements: number;
+  showInconclusive: boolean;
   dataDir: string;
   settingsBroken?: boolean;
 }
@@ -81,13 +87,15 @@ export function withSetting(settings: Settings, key: string, raw: unknown): Sett
     case 'auto_review':
     case 'revise':
     case 'share_with_claude':
+    case 'show_inconclusive':
       return { ...settings, [key]: toggle(key, value) };
-    case 'max_revisions': {
+    case 'max_revisions':
+    case 'max_statements': {
       const count = Number(value || NaN);
       if (!(Number.isInteger(count) && count >= 1)) {
-        throw new Error('max_revisions must be a whole number, 1 or more');
+        throw new Error(`${key} must be a whole number, 1 or more`);
       }
-      return { ...settings, max_revisions: count };
+      return { ...settings, [key]: count };
     }
     case 'model':
       if (!text) throw new Error('model must not be empty');
@@ -175,6 +183,8 @@ export function resolveConfig(env: Env, settingsEnv: Env = {}, dataDir?: string)
     revise: settings.revise && !broken,
     shareWithClaude: settings.share_with_claude,
     maxRevisions: settings.max_revisions,
+    maxStatements: settings.max_statements,
+    showInconclusive: settings.show_inconclusive,
     dataDir: dir,
     ...(broken ? { settingsBroken: true } : {}),
   };

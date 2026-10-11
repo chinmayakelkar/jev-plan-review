@@ -115,9 +115,12 @@ function verifyQuestions(item) {
 function tokensOf(value) {
     return estimateTokens(JSON.stringify(value));
 }
+function isKind(choice) {
+    return KINDS.includes(choice);
+}
 async function classify(statements, asker, options) {
     if (statements.length === 0)
-        return [];
+        return { items: [], unclear: [] };
     const limit = Math.floor(options.maxRequestTokens * 0.8);
     let state = {};
     let stateTokens = Infinity;
@@ -139,14 +142,29 @@ async function classify(statements, asker, options) {
             ...choiceAnswer(answers, `kind_${statement.id}`, CHOICES),
         }));
     }));
-    return answered
-        .flat()
-        .filter((entry) => KINDS.includes(entry.choice))
-        .map((entry) => ({
-        ...entry.statement,
-        kind: entry.choice,
-        kindConfidence: entry.confidence,
-    }));
+    const items = [];
+    const unclear = [];
+    for (const { statement, choice, confidence, probabilities } of answered.flat()) {
+        const real = KINDS.filter((kind) => kind in probabilities);
+        const summed = Object.keys(probabilities).length > 0
+            ? real.reduce((sum, kind) => sum + probabilities[kind], 0)
+            : isKind(choice)
+                ? confidence
+                : 1 - confidence;
+        // Rounded so that a sum such as 0.7 + 0.1 still meets a threshold of 0.8.
+        const chance = Math.min(1, Math.round(summed * 1e6) / 1e6);
+        if (chance < 0.5)
+            continue;
+        const kind = isKind(choice)
+            ? choice
+            : [...real].sort((a, b) => probabilities[b] - probabilities[a])[0];
+        if (chance < options.minConfidence || kind === undefined) {
+            unclear.push({ ...statement, confidence: chance });
+            continue;
+        }
+        items.push({ ...statement, kind });
+    }
+    return { items, unclear };
 }
 async function verify(parts, items, asker, options) {
     const scores = new Map(items.map((item) => [item.id, { covered: 0, contradicted: 0 }]));
@@ -198,14 +216,15 @@ export async function review(plan, statements, asker, options = {}) {
             return asker.ask(state, questions);
         },
     };
-    const items = await classify(statements, counted, resolved);
+    const { items, unclear } = await classify(statements, counted, resolved);
     const parts = splitPlan(plan, resolved.maxPlanTokens);
     const scores = await verify(parts, items, counted, resolved);
     const verdicts = items.map((item) => decide(item, scores.get(item.id) ?? { covered: 0, contradicted: 0 }, resolved.minConfidence));
     return {
         verdicts,
+        unclear,
         statements: statements.length,
-        ignored: statements.length - items.length,
+        ignored: statements.length - items.length - unclear.length,
         requests,
         planParts: parts.length,
     };

@@ -77,18 +77,24 @@ export function choiceAnswer(
   answers: JevAnswers,
   name: string,
   allowed: readonly string[],
-): { choice: string; confidence: number } {
-  const { choice, confidence, probabilities } = answerObject(answers, name);
+): { choice: string; confidence: number; probabilities: Record<string, number> } {
+  const answer = answerObject(answers, name);
+  const { choice } = answer;
   if (typeof choice !== 'string' || !allowed.includes(choice)) {
     throw new Error(`Invalid Jev answer for ${name}`);
   }
-  if (isProbability(confidence)) return { choice, confidence };
-  const fallback =
-    probabilities !== null && typeof probabilities === 'object'
-      ? (probabilities as Record<string, unknown>)[choice]
-      : undefined;
-  if (!isProbability(fallback)) throw new Error(`Invalid Jev answer for ${name}`);
-  return { choice, confidence: fallback };
+  const given =
+    answer.probabilities !== null && typeof answer.probabilities === 'object'
+      ? (answer.probabilities as Record<string, unknown>)
+      : {};
+  const probabilities: Record<string, number> = {};
+  for (const option of allowed) {
+    const value = given[option];
+    if (isProbability(value)) probabilities[option] = value;
+  }
+  const confidence = isProbability(answer.confidence) ? answer.confidence : probabilities[choice];
+  if (confidence === undefined) throw new Error(`Invalid Jev answer for ${name}`);
+  return { choice, confidence, probabilities };
 }
 
 export function jevClient(options: JevClientOptions): JevAsker {

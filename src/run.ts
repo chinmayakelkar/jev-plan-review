@@ -4,8 +4,6 @@ import { review, type ReviewResult } from './review.js';
 import { toStatements } from './statements.js';
 import { collectSources, readTranscript } from './transcript.js';
 
-export const MAX_STATEMENTS = 150;
-
 export interface RunInput {
   plan: string;
   transcriptPath: string;
@@ -35,7 +33,7 @@ export async function runReview(input: RunInput): Promise<RunOutcome> {
   if (!input.plan.trim()) return { kind: 'skipped', reason: 'the plan is empty' };
   try {
     const records = readTranscript(input.transcriptPath).slice(input.windowStart);
-    const { statements, skipped } = toStatements(collectSources(records), MAX_STATEMENTS);
+    const { statements, skipped } = toStatements(collectSources(records), config.maxStatements);
     if (statements.length === 0) {
       return {
         kind: 'skipped',

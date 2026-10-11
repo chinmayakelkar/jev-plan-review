@@ -114,17 +114,23 @@ export async function handleHook(
   if (outcome.overLimit > 0) {
     notes.push(`${outcome.overLimit} statement(s) were over the limit and not checked.`);
   }
-  const reportPath = saveReport(config.dataDir, sessionId, renderMarkdown(outcome.result));
+  const { showInconclusive } = config;
+  const reportPath = saveReport(
+    config.dataDir,
+    sessionId,
+    renderMarkdown(outcome.result, { showInconclusive }),
+  );
   const output: HookOutput = {
     systemMessage: renderText(outcome.result, {
       reportPath,
+      showInconclusive,
       ...(notes.length ? { note: notes.join(' ') } : {}),
     }),
   };
   if (config.shareWithClaude) {
     output.hookSpecificOutput = {
       hookEventName: 'PreToolUse',
-      additionalContext: claudeContext(outcome.result, reportPath),
+      additionalContext: claudeContext(outcome.result, reportPath, showInconclusive),
     };
   }
   return output;
