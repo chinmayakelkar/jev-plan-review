@@ -13,6 +13,7 @@ function config(overrides: Partial<Config> = {}): Config {
     autoReview: true,
     revise: true,
     shareWithClaude: true,
+    maxRevisions: 2,
     dataDir: tempDir(),
     ...overrides,
   };

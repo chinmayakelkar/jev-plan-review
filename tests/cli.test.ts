@@ -92,6 +92,7 @@ describe('runCli settings', () => {
     expect(output).toMatch(/auto_review\s+on/);
     expect(output).toMatch(/revise\s+on/);
     expect(output).toMatch(/share_with_claude\s+on/);
+    expect(output).toMatch(/max_revisions\s+2/);
     expect(output).toMatch(/model\s+jev-latest/);
     expect(output).toContain('TYPESAFE_API_KEY is not set');
     expect(output).toContain('Do not paste the key into the chat');

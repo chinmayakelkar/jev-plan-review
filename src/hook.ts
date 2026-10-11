@@ -6,7 +6,6 @@ import { runReview } from './run.js';
 import { loadState, saveReport, saveState } from './session.js';
 import { readTranscript } from './transcript.js';
 
-export const MAX_REVISIONS = 2;
 const BROKEN_SETTINGS =
   'settings.json could not be read in full, so defaults were used and no plan was sent back; run /jev-plan-review:settings to fix it.';
 
@@ -87,31 +86,40 @@ export async function handleHook(
     return { systemMessage: `jev-plan-review: skipped — ${outcome.reason}${broken}` };
   }
 
+  const newPlanFile =
+    planFilePath !== undefined &&
+    state.lastPlanFilePath !== undefined &&
+    planFilePath !== state.lastPlanFilePath;
+  const revisions = newPlanFile ? 0 : state.revisions;
+  const max = config.maxRevisions;
   const open = outcome.result.verdicts.filter((verdict) => verdict.actionable);
-  if (config.revise && open.length > 0 && state.revisions < MAX_REVISIONS) {
-    const revision = state.revisions + 1;
+  if (config.revise && open.length > 0 && revisions < max) {
+    const revision = revisions + 1;
     saveState(config.dataDir, sessionId, { ...remembered, revisions: revision });
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
-        permissionDecisionReason: revisionRequest(outcome.result, revision, MAX_REVISIONS),
+        permissionDecisionReason: revisionRequest(outcome.result, revision, max),
       },
-      systemMessage: `jev-plan-review: sent the plan back to Claude (revision ${revision} of ${MAX_REVISIONS}), ${open.length} item(s) not reflected`,
+      systemMessage: `jev-plan-review: sent the plan back to Claude (revision ${revision} of ${max}), ${open.length} item(s) not reflected`,
     };
   }
 
-  saveState(config.dataDir, sessionId, { ...remembered, revisions: 0 });
+  saveState(config.dataDir, sessionId, { ...remembered, revisions });
   const notes: string[] = config.settingsBroken ? [BROKEN_SETTINGS] : [];
   if (config.revise && open.length > 0) {
-    notes.push(`Still open after ${MAX_REVISIONS} revisions; the plan is shown as it stands.`);
+    notes.push(`Still open after ${max} revisions; the plan is shown as it stands.`);
   }
   if (outcome.overLimit > 0) {
     notes.push(`${outcome.overLimit} statement(s) were over the limit and not checked.`);
   }
   const reportPath = saveReport(config.dataDir, sessionId, renderMarkdown(outcome.result));
   const output: HookOutput = {
-    systemMessage: renderText(outcome.result, notes.length ? { note: notes.join(' ') } : {}),
+    systemMessage: renderText(outcome.result, {
+      reportPath,
+      ...(notes.length ? { note: notes.join(' ') } : {}),
+    }),
   };
   if (config.shareWithClaude) {
     output.hookSpecificOutput = {

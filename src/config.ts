@@ -20,6 +20,7 @@ export interface Settings {
   auto_review: boolean;
   revise: boolean;
   share_with_claude: boolean;
+  max_revisions: number;
   model: string;
 }
 
@@ -29,6 +30,7 @@ export const DEFAULT_SETTINGS: Settings = {
   auto_review: true,
   revise: true,
   share_with_claude: true,
+  max_revisions: 2,
   model: DEFAULT_MODEL,
 };
 
@@ -41,6 +43,7 @@ export interface Config {
   autoReview: boolean;
   revise: boolean;
   shareWithClaude: boolean;
+  maxRevisions: number;
   dataDir: string;
   settingsBroken?: boolean;
 }
@@ -79,6 +82,13 @@ export function withSetting(settings: Settings, key: string, raw: unknown): Sett
     case 'revise':
     case 'share_with_claude':
       return { ...settings, [key]: toggle(key, value) };
+    case 'max_revisions': {
+      const count = Number(value || NaN);
+      if (!(Number.isInteger(count) && count >= 1)) {
+        throw new Error('max_revisions must be a whole number, 1 or more');
+      }
+      return { ...settings, max_revisions: count };
+    }
     case 'model':
       if (!text) throw new Error('model must not be empty');
       return { ...settings, model: text };
@@ -164,6 +174,7 @@ export function resolveConfig(env: Env, settingsEnv: Env = {}, dataDir?: string)
     autoReview: settings.auto_review,
     revise: settings.revise && !broken,
     shareWithClaude: settings.share_with_claude,
+    maxRevisions: settings.max_revisions,
     dataDir: dir,
     ...(broken ? { settingsBroken: true } : {}),
   };

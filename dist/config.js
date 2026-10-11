@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS = {
     auto_review: true,
     revise: true,
     share_with_claude: true,
+    max_revisions: 2,
     model: DEFAULT_MODEL,
 };
 export function given(value) {
@@ -51,6 +52,13 @@ export function withSetting(settings, key, raw) {
         case 'revise':
         case 'share_with_claude':
             return { ...settings, [key]: toggle(key, value) };
+        case 'max_revisions': {
+            const count = Number(value || NaN);
+            if (!(Number.isInteger(count) && count >= 1)) {
+                throw new Error('max_revisions must be a whole number, 1 or more');
+            }
+            return { ...settings, max_revisions: count };
+        }
         case 'model':
             if (!text)
                 throw new Error('model must not be empty');
@@ -133,6 +141,7 @@ export function resolveConfig(env, settingsEnv = {}, dataDir) {
         autoReview: settings.auto_review,
         revise: settings.revise && !broken,
         shareWithClaude: settings.share_with_claude,
+        maxRevisions: settings.max_revisions,
         dataDir: dir,
         ...(broken ? { settingsBroken: true } : {}),
     };

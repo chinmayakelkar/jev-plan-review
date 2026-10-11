@@ -39,8 +39,9 @@ export function summaryLine(result: ReviewResult): string {
 
 export function renderText(
   result: ReviewResult,
-  options: { maxChars?: number; note?: string } = {},
+  options: { maxChars?: number; note?: string; reportPath?: string } = {},
 ): string {
+  const pointer = options.reportPath ? `; full report: ${options.reportPath}` : '';
   const maxChars = options.maxChars ?? 9000;
   const lines = [summaryLine(result)];
   if (options.note) lines.push(options.note);
@@ -52,7 +53,7 @@ export function renderText(
     const note = noteFor(verdict);
     return `${yesNo(verdict).padEnd(3)} ${percent(verdict.confidence).padStart(4)}  ${verdict.kind.padEnd(11)}  ${truncate(verdict.text, 90)}${note ? `  [${note}]` : ''}`;
   });
-  const reserve = 20;
+  const reserve = 20 + pointer.length;
   let used = lines.join('\n').length;
   let shown = 0;
   for (const row of rows) {
@@ -61,7 +62,7 @@ export function renderText(
     used += row.length + 1;
     shown += 1;
   }
-  if (shown < rows.length) lines.push(`… and ${rows.length - shown} more`);
+  if (shown < rows.length) lines.push(`… and ${rows.length - shown} more${pointer}`);
   return lines.join('\n');
 }
 
@@ -116,7 +117,7 @@ export function claudeContext(result: ReviewResult, reportPath: string): string 
   return [
     `${REPORT_MARKER} This plan was checked against what the user said while it was prepared. The report below is for the user to act on. Do not change the plan because of it unless the user asks.`,
     '',
-    renderText(result, { maxChars: 8000 }),
+    renderText(result, { maxChars: 8000, reportPath }),
     '',
     `Full report: ${reportPath}`,
   ].join('\n');

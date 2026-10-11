@@ -94,6 +94,14 @@ describe('renderText', () => {
     expect(text.split('\n')[1]).toContain('The one real problem');
     expect(text).toMatch(/… and \d+ more$/);
   });
+
+  it('points to the full report when the table is cut, and only then', () => {
+    const many = resultOf(Array.from({ length: 200 }, () => verdict({})));
+    const text = renderText(many, { maxChars: 1000, reportPath: 'D:/data/reports/sess.md' });
+    expect(text.length).toBeLessThanOrEqual(1000);
+    expect(text).toMatch(/… and \d+ more; full report: D:\/data\/reports\/sess\.md$/);
+    expect(renderText(mixed, { reportPath: 'D:/data/reports/sess.md' })).not.toContain('full report');
+  });
 });
 
 describe('renderMarkdown', () => {
@@ -116,6 +124,18 @@ describe('revisionRequest', () => {
     expect(text).not.toContain('Add a CSV export');
     expect(text).not.toContain('Keep the README short');
   });
+
+  it('lists every open item, however many there are', () => {
+    const many = resultOf(
+      Array.from({ length: 150 }, (_, index) =>
+        verdict({ text: `Item ${index} ${'word '.repeat(80)}`, status: 'missing', actionable: true }),
+      ),
+    );
+    const listed = revisionRequest(many, 1, 2)
+      .split('\n')
+      .filter((line) => line.startsWith('- The plan leaves out'));
+    expect(listed).toHaveLength(150);
+  });
 });
 
 describe('claudeContext', () => {
@@ -129,6 +149,8 @@ describe('claudeContext', () => {
 
   it('stays under the hook output limit for a very long table', () => {
     const many = resultOf(Array.from({ length: 400 }, () => verdict({})));
-    expect(claudeContext(many, 'D:/data/reports/sess.md').length).toBeLessThan(10_000);
+    const text = claudeContext(many, 'D:/data/reports/sess.md');
+    expect(text.length).toBeLessThan(10_000);
+    expect(text).toMatch(/… and \d+ more; full report: D:\/data\/reports\/sess\.md/);
   });
 });

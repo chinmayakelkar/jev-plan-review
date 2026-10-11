@@ -56,8 +56,11 @@ can change your mind at any time with `/jev-plan-review:settings`.
    the reflect score. An answer below your confidence threshold is marked
    *unsure*.
 6. **Revise, if you left that on.** Items Jev is sure are missing or
-   contradicted are sent back to Claude to fix, at most twice. Unsure items
-   are never sent back.
+   contradicted are sent back to Claude to fix, at most twice unless you
+   change `max_revisions`. Unsure items are never sent back. The count
+   belongs to the plan: it starts again only when you approve a plan, type
+   `/clear`, or Claude starts a new plan file. After that many tries the
+   plugin still reviews the plan, but only reports.
 7. **Report.** The table is shown next to the plan, and the plan waits for
    you as usual. Claude is given the same table, with a note that it is yours
    to act on, so you can say "fix the missing ones" and be understood. The
@@ -119,7 +122,8 @@ You can also name the change directly:
 | `provider` | `typesafe` | `typesafe` or `openrouter`. Decides where requests go and which key is used. |
 | `min_confidence` | `80` | Percent, 50–100. An answer below this is marked `unsure`, and revise leaves it alone. |
 | `auto_review` | `on` | Review every plan-mode plan before it is shown. When off, only the review command runs a check. |
-| `revise` | `on` | Send a plan back to Claude, up to 2 times, when items are missing or contradicted. When off, the plugin only reports and you decide what to do. |
+| `revise` | `on` | Send a plan back to Claude when items are missing or contradicted. When off, the plugin only reports and you decide what to do. |
+| `max_revisions` | `2` | How many times revise may send one plan back. Any whole number from 1 up. Each one costs another revision by Claude and another Jev review before you see the plan. |
 | `share_with_claude` | `on` | Give Claude the same table you see. |
 | `model` | `jev-latest` | Jev model name. Both providers accept it. |
 

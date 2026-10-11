@@ -29,8 +29,9 @@ const SETTING_HELP: Record<keyof Settings, string> = {
   provider: 'typesafe or openrouter: where Jev requests are sent',
   min_confidence: '50 to 100: answers below this are marked unsure, and revise leaves them alone',
   auto_review: 'on or off: review every plan-mode plan before it is shown',
-  revise: 'on or off: send a plan back to Claude, up to 2 times, when items are missing or contradicted',
+  revise: 'on or off: send a plan back to Claude when items are missing or contradicted',
   share_with_claude: 'on or off: let Claude read the report',
+  max_revisions: '1 or more: how many times revise may send one plan back',
   model: 'the Jev model name',
 };
 

@@ -5,7 +5,16 @@ import type { Config } from '../src/config.js';
 import { handleHook, type HookInput } from '../src/hook.js';
 import { loadState } from '../src/session.js';
 import { DENY_MARKER, REPORT_MARKER } from '../src/transcript.js';
-import { fakeJev, human, tempDir, writeTranscript, type Seen } from './helpers.js';
+import {
+  assistantText,
+  fakeJev,
+  human,
+  tempDir,
+  toolResult,
+  toolUse,
+  writeTranscript,
+  type Seen,
+} from './helpers.js';
 
 function config(overrides: Partial<Config> = {}): Config {
   return {
@@ -17,6 +26,7 @@ function config(overrides: Partial<Config> = {}): Config {
     autoReview: true,
     revise: true,
     shareWithClaude: true,
+    maxRevisions: 2,
     dataDir: tempDir(),
     ...overrides,
   };
@@ -103,7 +113,64 @@ describe('handleHook with revise on', () => {
     expect(third?.systemMessage).toContain('[missing]');
 
     const fourth = await handleHook(preToolUse(path), settings, missing());
-    expect(fourth?.hookSpecificOutput?.permissionDecisionReason).toContain('revision 1 of 2');
+    expect(fourth?.hookSpecificOutput?.permissionDecision).toBeUndefined();
+    expect(fourth?.systemMessage).toContain('Still open after 2 revisions');
+  });
+
+  it('keeps counting when the user speaks but the plan is the same one', async () => {
+    const records = [human('Add a CSV export command too.')];
+    const path = writeTranscript(records);
+    const settings = config();
+    await handleHook(preToolUse(path), settings, missing());
+    await handleHook(preToolUse(path), settings, missing());
+
+    writeTranscript([...records, human('Also write the output in UTC.')], path);
+    const output = await handleHook(preToolUse(path), settings, missing());
+    expect(output?.hookSpecificOutput?.permissionDecision).toBeUndefined();
+  });
+
+  it('starts counting again for a new plan file', async () => {
+    const path = writeTranscript([human('Add a CSV export command too.')]);
+    const settings = config();
+    const plan = 'Store data in SQLite.';
+    const first = { tool_input: { plan, planFilePath: 'plans/first.md' } };
+    await handleHook(preToolUse(path, first), settings, missing());
+    await handleHook(preToolUse(path, first), settings, missing());
+
+    const second = { tool_input: { plan, planFilePath: 'plans/second.md' } };
+    const output = await handleHook(preToolUse(path, second), settings, missing());
+    expect(output?.hookSpecificOutput?.permissionDecisionReason).toContain('revision 1 of 2');
+  });
+
+  it('sends the plan back as many times as max_revisions allows', async () => {
+    const path = writeTranscript([human('Add a CSV export command too.')]);
+    const settings = config({ maxRevisions: 3 });
+    await handleHook(preToolUse(path), settings, missing());
+    await handleHook(preToolUse(path), settings, missing());
+    const third = await handleHook(preToolUse(path), settings, missing());
+    expect(third?.hookSpecificOutput?.permissionDecisionReason).toContain('revision 3 of 3');
+    const fourth = await handleHook(preToolUse(path), settings, missing());
+    expect(fourth?.hookSpecificOutput?.permissionDecision).toBeUndefined();
+    expect(fourth?.systemMessage).toContain('Still open after 3 revisions');
+  });
+
+  it('keeps counting while only Claude has been working since the send-back', async () => {
+    const records = [human('Add a CSV export command too.')];
+    const path = writeTranscript(records);
+    const settings = config();
+    const first = await handleHook(preToolUse(path), settings, missing());
+
+    writeTranscript(
+      [
+        ...records,
+        toolUse('t1', 'ExitPlanMode'),
+        toolResult('t1', first?.hookSpecificOutput?.permissionDecisionReason ?? '', { isError: true }),
+        assistantText('The plan now adds a CSV export command for every report.'),
+      ],
+      path,
+    );
+    const output = await handleHook(preToolUse(path), settings, missing());
+    expect(output?.hookSpecificOutput?.permissionDecisionReason).toContain('revision 2 of 2');
   });
 
   it('does not act when Jev is less sure than the minimum', async () => {

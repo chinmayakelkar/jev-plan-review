@@ -30,6 +30,7 @@ describe('settings', () => {
       auto_review: true,
       revise: true,
       share_with_claude: true,
+      max_revisions: 2,
       model: 'jev-latest',
     });
   });
@@ -57,6 +58,12 @@ describe('settings', () => {
     expect(() => withSetting(DEFAULT_SETTINGS, 'provider', 'azure')).toThrow(
       'provider must be typesafe or openrouter',
     );
+    expect(withSetting(DEFAULT_SETTINGS, 'max_revisions', '25').max_revisions).toBe(25);
+    for (const bad of ['0', '2.5', 'many', '']) {
+      expect(() => withSetting(DEFAULT_SETTINGS, 'max_revisions', bad)).toThrow(
+        'max_revisions must be a whole number, 1 or more',
+      );
+    }
     expect(() => withSetting(DEFAULT_SETTINGS, 'model', ' ')).toThrow('model must not be empty');
     expect(() => withSetting(DEFAULT_SETTINGS, 'colour', 'blue')).toThrow('unknown setting colour');
   });
@@ -83,6 +90,7 @@ describe('resolveConfig', () => {
       autoReview: true,
       revise: true,
       shareWithClaude: true,
+      maxRevisions: 2,
       dataDir: dir,
     });
     expect(resolveConfig({ CLAUDE_PLUGIN_DATA: dir }).dataDir).toBe(dir);

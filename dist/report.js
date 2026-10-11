@@ -28,6 +28,7 @@ export function summaryLine(result) {
     return `jev-plan-review: ${parts.join(', ')}${unsure ? ` (${unsure} unsure)` : ''}`;
 }
 export function renderText(result, options = {}) {
+    const pointer = options.reportPath ? `; full report: ${options.reportPath}` : '';
     const maxChars = options.maxChars ?? 9000;
     const lines = [summaryLine(result)];
     if (options.note)
@@ -40,7 +41,7 @@ export function renderText(result, options = {}) {
         const note = noteFor(verdict);
         return `${yesNo(verdict).padEnd(3)} ${percent(verdict.confidence).padStart(4)}  ${verdict.kind.padEnd(11)}  ${truncate(verdict.text, 90)}${note ? `  [${note}]` : ''}`;
     });
-    const reserve = 20;
+    const reserve = 20 + pointer.length;
     let used = lines.join('\n').length;
     let shown = 0;
     for (const row of rows) {
@@ -51,7 +52,7 @@ export function renderText(result, options = {}) {
         shown += 1;
     }
     if (shown < rows.length)
-        lines.push(`… and ${rows.length - shown} more`);
+        lines.push(`… and ${rows.length - shown} more${pointer}`);
     return lines.join('\n');
 }
 function cell(text) {
@@ -90,7 +91,7 @@ export function claudeContext(result, reportPath) {
     return [
         `${REPORT_MARKER} This plan was checked against what the user said while it was prepared. The report below is for the user to act on. Do not change the plan because of it unless the user asks.`,
         '',
-        renderText(result, { maxChars: 8000 }),
+        renderText(result, { maxChars: 8000, reportPath }),
         '',
         `Full report: ${reportPath}`,
     ].join('\n');
