@@ -173,10 +173,10 @@ describe('a real captured session', () => {
       expect.arrayContaining(['prompt', 'plan_feedback', 'document']),
     );
     expect(sources.find((source) => source.kind === 'prompt')?.text).toBe(
-      'Plan a tiny script that prints the date. It must use Python. See @notes.md',
+      'Plan a tiny script that exports reports. See @notes.md',
     );
     expect(sources.find((source) => source.kind === 'plan_feedback')?.text).toBe(
-      'Use UTC, not local time.',
+      'add a --help flag',
     );
     expect(sources.find((source) => source.kind === 'document')?.text.trim()).toBe(
       'The export must be CSV, never Excel.',
