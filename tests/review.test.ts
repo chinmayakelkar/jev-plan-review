@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { JevAsker } from '../src/jev.js';
 import { decide, pack, review, splitPlan, type Item } from '../src/review.js';
 import { toStatements } from '../src/statements.js';
 import { estimateTokens } from '../src/tokens.js';
@@ -129,6 +130,23 @@ describe('review', () => {
     expect(result.unclear).toEqual([{ ...statements[1], confidence: 0.6 }]);
     expect(result.ignored).toBe(1);
     expect(seen[1].questions).toEqual(['covered_s1', 'contradicted_s1']);
+  });
+
+  it('adds up the tokens Jev reports, and counts none when it reports none', async () => {
+    const reporting: JevAsker = {
+      async ask(state, questions) {
+        return { ...(await fakeJev().ask(state, questions)), usage: { input_tokens: 1000, output_tokens: 7 } };
+      },
+    };
+    const statements = statementsOf('Use Postgres for the storage layer.');
+    const result = await review('Store data in Postgres.', statements, reporting);
+    expect(result.requests).toBe(2);
+    expect(result.usage).toEqual({ inputTokens: 2000, outputTokens: 14 });
+    expect(result.elapsedMs).toBeGreaterThanOrEqual(0);
+    expect((await review('Store data in Postgres.', statements, fakeJev())).usage).toEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+    });
   });
 
   it('checks a statement Jev is sure is real but torn between two kinds', async () => {

@@ -69,9 +69,11 @@ can change your mind at any time with `/jev-plan-review:settings`.
    to act on, so you can say "fix the missing ones" and be understood. The
    full report is also saved to a file.
 
-If the key is missing, Jev fails, or an answer is malformed, the hook shows a
-one-line note and lets the plan through. It never blocks because of its own
-trouble.
+Requests are paced to stay under TypeSafe's limits of 100K input tokens and
+80 requests per second, and a request turned away as too busy is tried again
+up to twice. If the key is missing, Jev still fails, or an answer is
+malformed, the hook shows a one-line note and lets the plan through. It never
+blocks because of its own trouble.
 
 ## Install
 

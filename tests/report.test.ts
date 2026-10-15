@@ -36,6 +36,8 @@ function resultOf(verdicts: Verdict[], ignored = 0, unclear: Unclear[] = []): Re
     ignored,
     requests: 2,
     planParts: 1,
+    usage: { inputTokens: 0, outputTokens: 0 },
+    elapsedMs: 0,
   };
 }
 

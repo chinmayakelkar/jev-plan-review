@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   choiceAnswer,
   jevClient,
@@ -36,6 +36,77 @@ describe('jevClient', () => {
   it('throws on an HTTP error', async () => {
     const client = jevClient({ apiKey: 'k', fetch: fakeFetch(401, 'nope') });
     await expect(client.ask('s', {})).rejects.toThrow('Jev request failed (401): nope');
+  });
+});
+
+const OK = JSON.stringify({ answers: {} });
+
+function scriptedFetch(
+  replies: { status: number; body?: string; headers?: Record<string, string> }[],
+  calls: number[] = [],
+) {
+  return (async () => {
+    const reply = replies[Math.min(calls.length, replies.length - 1)];
+    calls.push(Date.now());
+    return new Response(reply.body ?? OK, { status: reply.status, headers: reply.headers });
+  }) as typeof fetch;
+}
+
+describe('jevClient under load', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('waits as long as Retry-After says when throttled, then tries again', async () => {
+    const calls: number[] = [];
+    const client = jevClient({
+      apiKey: 'k',
+      fetch: scriptedFetch([{ status: 429, headers: { 'retry-after': '2' } }, { status: 200 }], calls),
+    });
+    const answer = client.ask('s', {});
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(answer).resolves.toEqual({ answers: {} });
+    expect(calls).toHaveLength(2);
+  });
+
+  it('retries an overloaded request twice, then gives up', async () => {
+    const calls: number[] = [];
+    const client = jevClient({ apiKey: 'k', fetch: scriptedFetch([{ status: 529, body: 'busy' }], calls) });
+    const failed = expect(client.ask('s', {})).rejects.toThrow('Jev request failed (529): busy');
+    await vi.runAllTimersAsync();
+    await failed;
+    expect(calls).toHaveLength(3);
+  });
+
+  it('does not retry any other failure', async () => {
+    const calls: number[] = [];
+    const client = jevClient({ apiKey: 'k', fetch: scriptedFetch([{ status: 401, body: 'nope' }], calls) });
+    await expect(client.ask('s', {})).rejects.toThrow('Jev request failed (401): nope');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('sends no more than 80,000 tokens in any one second', async () => {
+    const calls: number[] = [];
+    const client = jevClient({ apiKey: 'k', fetch: scriptedFetch([{ status: 200 }], calls) });
+    const big = 'word '.repeat(50_000);
+    const answers = Promise.all([client.ask(big, {}), client.ask(big, {})]);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await answers;
+    expect(calls).toEqual([0, 1000].map((ms) => calls[0] + ms));
+  });
+
+  it('sends no more than 60 requests in any one second', async () => {
+    const calls: number[] = [];
+    const client = jevClient({ apiKey: 'k', fetch: scriptedFetch([{ status: 200 }], calls) });
+    const answers = Promise.all(Array.from({ length: 61 }, () => client.ask('s', {})));
+    await vi.advanceTimersByTimeAsync(999);
+    expect(calls).toHaveLength(60);
+    await vi.advanceTimersByTimeAsync(1);
+    await answers;
+    expect(calls).toHaveLength(61);
   });
 });
 

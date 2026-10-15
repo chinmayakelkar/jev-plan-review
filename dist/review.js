@@ -209,11 +209,17 @@ export function decide(item, score, minConfidence) {
 }
 export async function review(plan, statements, asker, options = {}) {
     const resolved = { ...DEFAULT_REVIEW_OPTIONS, ...options };
+    const started = Date.now();
     let requests = 0;
+    const usage = { inputTokens: 0, outputTokens: 0 };
+    const count = (value) => (typeof value === 'number' && value >= 0 ? value : 0);
     const counted = {
-        ask(state, questions) {
+        async ask(state, questions) {
             requests += 1;
-            return asker.ask(state, questions);
+            const response = await asker.ask(state, questions);
+            usage.inputTokens += count(response.usage?.input_tokens);
+            usage.outputTokens += count(response.usage?.output_tokens);
+            return response;
         },
     };
     const { items, unclear } = await classify(statements, counted, resolved);
@@ -227,5 +233,7 @@ export async function review(plan, statements, asker, options = {}) {
         ignored: statements.length - items.length - unclear.length,
         requests,
         planParts: parts.length,
+        usage,
+        elapsedMs: Date.now() - started,
     };
 }

@@ -1,3 +1,5 @@
+import { estimateTokens } from './tokens.js';
+
 export const SYSTEM_ONE_URL = 'https://api.typesafe.ai/v1/systemone';
 export const DEFAULT_MODEL = 'jev-latest';
 
@@ -21,6 +23,7 @@ export type JevAnswers = Record<string, unknown>;
 
 export interface JevResponse {
   answers: JevAnswers;
+  usage?: { input_tokens?: unknown; output_tokens?: unknown };
 }
 
 export interface JevAsker {
@@ -97,20 +100,65 @@ export function choiceAnswer(
   return { choice, confidence, probabilities };
 }
 
+// TypeSafe allows 100K input tokens and 80 requests per second; these leave a margin.
+const TOKENS_PER_SECOND = 80_000;
+const REQUESTS_PER_SECOND = 60;
+const RETRIES = 2;
+const BUSY = new Set([429, 529]);
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function pacer(): (tokens: number) => Promise<void> {
+  const sent: { at: number; tokens: number }[] = [];
+  let queue = Promise.resolve();
+  return (tokens) => {
+    queue = queue.then(async () => {
+      for (;;) {
+        const now = Date.now();
+        while (sent.length > 0 && now - sent[0].at >= 1000) sent.shift();
+        const used = sent.reduce((sum, entry) => sum + entry.tokens, 0);
+        if (sent.length === 0 || (sent.length < REQUESTS_PER_SECOND && used + tokens <= TOKENS_PER_SECOND)) {
+          sent.push({ at: now, tokens });
+          return;
+        }
+        await wait(sent[0].at + 1000 - now);
+      }
+    });
+    return queue;
+  };
+}
+
+function retryDelay(headers: Headers, attempt: number): number {
+  const ms = Number(headers.get('retry-after-ms') ?? NaN);
+  const seconds = Number(headers.get('retry-after') ?? NaN);
+  const asked = Number.isFinite(ms) ? ms : Number.isFinite(seconds) ? seconds * 1000 : 500 * 2 ** attempt;
+  return Math.min(Math.max(asked, 0), 10_000);
+}
+
 export function jevClient(options: JevClientOptions): JevAsker {
   const fetcher = options.fetch ?? fetch;
+  const slot = pacer();
   return {
     async ask(state, questions) {
-      const response = await fetcher(options.baseUrl ?? SYSTEM_ONE_URL, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${options.apiKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ model: options.model ?? DEFAULT_MODEL, state, questions }),
-        signal: AbortSignal.timeout(options.timeoutMs ?? 60_000),
-      });
-      return parseJevResponse(response.status, response.ok, await response.text());
+      const body = JSON.stringify({ model: options.model ?? DEFAULT_MODEL, state, questions });
+      for (let attempt = 0; ; attempt += 1) {
+        await slot(estimateTokens(body));
+        const response = await fetcher(options.baseUrl ?? SYSTEM_ONE_URL, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${options.apiKey}`,
+            'content-type': 'application/json',
+          },
+          body,
+          signal: AbortSignal.timeout(options.timeoutMs ?? 60_000),
+        });
+        if (BUSY.has(response.status) && attempt < RETRIES) {
+          await response.body?.cancel();
+          await wait(retryDelay(response.headers, attempt));
+          continue;
+        }
+        return parseJevResponse(response.status, response.ok, await response.text());
+      }
     },
   };
 }
