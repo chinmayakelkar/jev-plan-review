@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { abridge, estimateTokens, truncate } from '../src/tokens.js';
 
 describe('estimateTokens', () => {
-  it('counts a short word as one token and digits as half', () => {
-    expect(estimateTokens('hello world')).toBe(2);
-    expect(estimateTokens('1234')).toBe(2);
+  it('counts a short word as one token and digits as half, scaled up by a quarter', () => {
+    expect(estimateTokens('hello world')).toBe(3);
+    expect(estimateTokens('1234')).toBe(3);
     expect(estimateTokens('')).toBe(0);
   });
 
   it('counts long words and symbols higher', () => {
-    expect(estimateTokens('internationalisation')).toBe(4);
-    expect(estimateTokens('a, b')).toBe(3);
+    expect(estimateTokens('internationalisation')).toBe(5);
+    expect(estimateTokens('a, b')).toBe(4);
   });
 });
 

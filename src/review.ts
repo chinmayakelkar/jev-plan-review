@@ -1,6 +1,6 @@
 import { choiceAnswer, noulAnswer, type JevAsker, type JevQuestions } from './jev.js';
 import type { Statement } from './statements.js';
-import { abridge, estimateTokens } from './tokens.js';
+import { abridge, estimateTokens, TOKEN_SCALE } from './tokens.js';
 import type { SourceKind } from './transcript.js';
 
 export const KINDS = ['requirement', 'constraint', 'decision', 'assumption', 'preference'] as const;
@@ -12,7 +12,8 @@ const CRITERIA: Record<string, string> = {
   decision: 'A choice the user made between alternatives, including answers to questions',
   assumption: 'Something the user stated as true that the plan should rely on',
   preference: 'A softer wish about style, naming, tooling or approach',
-  superseded: 'The user later reversed or replaced this statement',
+  superseded:
+    'A later statement by the user reverses or replaces this one. A statement that itself changes an earlier one is not superseded',
   not_actionable: 'A question, thanks, process remark or background with nothing for a plan to reflect',
 };
 const CHOICES = Object.keys(CRITERIA);
@@ -129,11 +130,12 @@ export function splitPlan(plan: string, maxTokens: number): string[] {
     current = '';
   };
   for (const paragraph of plan.split(/\n{2,}/)) {
-    // estimateTokens never exceeds one token per character, so a slice of
-    // maxTokens characters always fits.
+    // estimateTokens never exceeds TOKEN_SCALE tokens per character, so a slice
+    // of maxTokens / TOKEN_SCALE characters always fits.
+    const chars = Math.max(1, Math.floor(maxTokens / TOKEN_SCALE));
     const pieces =
       estimateTokens(paragraph) > maxTokens
-        ? (paragraph.match(new RegExp(`[\\s\\S]{1,${maxTokens}}`, 'g')) ?? [])
+        ? (paragraph.match(new RegExp(`[\\s\\S]{1,${chars}}`, 'g')) ?? [])
         : [paragraph];
     for (const piece of pieces) {
       const joined = current ? `${current}\n\n${piece}` : piece;

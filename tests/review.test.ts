@@ -82,13 +82,14 @@ describe('splitPlan', () => {
 
   it('breaks between paragraphs when over the budget', () => {
     const plan = 'alpha beta gamma\n\ndelta epsilon zeta\n\neta theta iota';
-    expect(splitPlan(plan, 4)).toEqual(['alpha beta gamma', 'delta epsilon zeta', 'eta theta iota']);
+    expect(splitPlan(plan, 5)).toEqual(['alpha beta gamma', 'delta epsilon zeta', 'eta theta iota']);
   });
 
   it('breaks inside a paragraph that is too long on its own', () => {
     const parts = splitPlan('word '.repeat(100), 10);
     expect(parts.length).toBeGreaterThan(5);
     for (const part of parts) expect(estimateTokens(part)).toBeLessThanOrEqual(10);
+    for (const part of splitPlan('!'.repeat(100), 10)) expect(estimateTokens(part)).toBeLessThanOrEqual(10);
   });
 });
 

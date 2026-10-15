@@ -1,6 +1,7 @@
 const TOKEN_PIECES = /[A-Za-z]+|\d+|[^\sA-Za-z\d]/g;
 // No tokenizer: a word costs one token per six letters, a digit half, any other
-// symbol nine tenths. Lands a little above what Jev reports for JSON-heavy states.
+// symbol nine tenths, all scaled up because Jev's own counts ran about a fifth higher.
+export const TOKEN_SCALE = 1.25;
 export function estimateTokens(text) {
     let tokens = 0;
     for (const [piece] of text.matchAll(TOKEN_PIECES)) {
@@ -13,7 +14,7 @@ export function estimateTokens(text) {
         else
             tokens += 0.9;
     }
-    return Math.ceil(tokens);
+    return Math.ceil(tokens * TOKEN_SCALE);
 }
 export function truncate(text, limit) {
     return text.length <= limit ? text : `${text.slice(0, Math.max(0, limit - 1))}…`;
