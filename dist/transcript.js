@@ -3,6 +3,7 @@ export const DENY_MARKER = '[jev-plan-review]';
 export const REPORT_MARKER = '[jev-plan-review report]';
 const REMINDER = /<system-reminder>[\s\S]*?<\/system-reminder>/g;
 const COMMAND = /<command-(?:name|message)>/;
+const OWN_COMMAND = /<command-name>\/jev-plan-review:/;
 const COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/;
 const NOISE = /^(?:<local-command-|<bash-(?:input|stdout|stderr)>|<task-notification>|\[Request interrupted)/;
 const USER_SAID = /the user said:\s*/i;
@@ -80,6 +81,8 @@ export function collectSources(records) {
     let lastAssistant = '';
     const addPrompt = (raw) => {
         let text = raw.replace(REMINDER, '').trim();
+        if (OWN_COMMAND.test(text))
+            return;
         if (COMMAND.test(text))
             text = (COMMAND_ARGS.exec(text)?.[1] ?? '').trim();
         if (!text || NOISE.test(text) || text.includes(REPORT_MARKER))

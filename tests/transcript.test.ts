@@ -61,6 +61,18 @@ describe('collectSources', () => {
     expect(sources).toEqual([{ kind: 'prompt', text: 'The export must be CSV.' }]);
   });
 
+  it('drops the arguments of this plugin’s own commands', () => {
+    const sources = collectSources([
+      human(
+        '<command-message>jev-plan-review:settings</command-message>\n<command-name>/jev-plan-review:settings</command-name>\n<command-args>revise off</command-args>',
+      ),
+      human(
+        '<command-message>jev-plan-review:review</command-message>\n<command-name>/jev-plan-review:review</command-name>\n<command-args>--since-clear</command-args>',
+      ),
+    ]);
+    expect(sources).toEqual([]);
+  });
+
   it('turns AskUserQuestion answers into self-contained statements', () => {
     const sources = collectSources([
       toolUse('t1', 'AskUserQuestion'),
