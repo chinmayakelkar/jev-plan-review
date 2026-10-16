@@ -146,7 +146,8 @@ You can also name the change directly:
 | `share_with_claude` | `on` | Give Claude the same table you see. |
 | `model` | `jev-latest` | Jev model name. |
 
-A change takes effect at once. The settings are kept in `settings.json` in the
+A change takes effect at once. Settings cannot be changed while plan mode
+is on; leave plan mode with Shift+Tab first. The settings are kept in `settings.json` in the
 plugin's data folder; the settings command prints the path. The API key is
 never stored there.
 

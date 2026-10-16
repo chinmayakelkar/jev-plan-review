@@ -27,7 +27,7 @@ The user's arguments, if any: $ARGUMENTS
    - Show items Jev was unsure of in the report: On, Off
    - How many statements one review may check: 75, 150, 300, 500. The user may type any whole number from 1 up.
 
-4. Apply only the values that differ from the current ones, all in one command, with one `--set` for each:
+4. If plan mode is on, change nothing. Tell the user to leave plan mode with Shift+Tab and run the command again. Otherwise apply only the values that differ from the current ones, all in one command, with one `--set` for each:
 
    ```
    node "${CLAUDE_PLUGIN_ROOT}/dist/bin/cli.js" settings --data-dir "${CLAUDE_PLUGIN_DATA}" --set provider=openrouter --set min_confidence=85
