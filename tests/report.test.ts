@@ -156,7 +156,7 @@ describe('statements Jev could not classify', () => {
     expect(markdown).not.toContain('Add a CSV export');
     expect(markdown).toContain('| 3 | requirement | Keep the README short | YES | 97% |  |');
     expect(markdown).toContain('3 inconclusive item(s) are hidden; show_inconclusive is off.');
-    const shared = claudeContext(withUnclear, 'D:/data/reports/sess.md', false);
+    const shared = claudeContext(withUnclear, 'D:/data/reports/sess.md', { showInconclusive: false });
     expect(shared).not.toContain('Postgres maybe');
     expect(shared).toContain('3 inconclusive item(s) are hidden');
   });
@@ -204,8 +204,8 @@ describe('revisionRequest', () => {
 describe('claudeContext', () => {
   it('gives Claude the table and the report path, and leaves the deciding to the user', () => {
     const text = claudeContext(mixed, 'D:/data/reports/sess.md');
-    expect(text.startsWith(REPORT_MARKER)).toBe(true);
-    expect(text).toContain('Do not change the plan because of it unless the user asks');
+    expect(text.startsWith(`${REPORT_MARKER} An automatic check of this plan against what the user said while it was prepared. Change the plan because of it only if the user asks.`)).toBe(true);
+    expect(claudeContext(mixed, 'D:/data/reports/sess.md', { note: 'Still open.' })).toContain('Still open.');
     expect(text).toContain('NO   93%  decision     Use Postgres | not SQLite  [contradicted]');
     expect(text).toContain('Full report: D:/data/reports/sess.md');
   });

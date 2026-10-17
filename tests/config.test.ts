@@ -28,8 +28,6 @@ describe('settings', () => {
       provider: 'typesafe',
       min_confidence: 80,
       auto_review: true,
-      revise: true,
-      share_with_claude: true,
       max_revisions: 2,
       max_statements: 150,
       show_inconclusive: true,
@@ -39,13 +37,13 @@ describe('settings', () => {
 
   it('save and load', () => {
     const dir = join(tempDir(), 'not-made-yet');
-    const changed = { ...DEFAULT_SETTINGS, provider: 'openrouter' as const, revise: false };
+    const changed = { ...DEFAULT_SETTINGS, provider: 'openrouter' as const, auto_review: false };
     saveSettings(dir, changed);
     expect(loadSettings(dir)).toEqual(changed);
   });
 
   it('accept plain words for values and say what is wrong with a bad one', () => {
-    expect(withSetting(DEFAULT_SETTINGS, 'revise', 'OFF').revise).toBe(false);
+    expect(withSetting(DEFAULT_SETTINGS, 'auto_review', 'OFF').auto_review).toBe(false);
     expect(withSetting(DEFAULT_SETTINGS, 'auto_review', 'no').auto_review).toBe(false);
     expect(withSetting(DEFAULT_SETTINGS, 'min_confidence', '90%').min_confidence).toBe(90);
     expect(withSetting(DEFAULT_SETTINGS, 'provider', 'OpenRouter').provider).toBe('openrouter');
@@ -56,7 +54,9 @@ describe('settings', () => {
     expect(() => withSetting(DEFAULT_SETTINGS, 'min_confidence', '')).toThrow(
       'min_confidence must be a number from 50 to 100',
     );
-    expect(() => withSetting(DEFAULT_SETTINGS, 'revise', 'maybe')).toThrow('revise must be on or off');
+    expect(() => withSetting(DEFAULT_SETTINGS, 'auto_review', 'maybe')).toThrow('auto_review must be on or off');
+    expect(() => withSetting(DEFAULT_SETTINGS, 'revise', 'off')).toThrow('unknown setting revise');
+    expect(() => withSetting(DEFAULT_SETTINGS, 'share_with_claude', 'off')).toThrow('unknown setting share_with_claude');
     expect(() => withSetting(DEFAULT_SETTINGS, 'provider', 'azure')).toThrow(
       'provider must be typesafe or openrouter',
     );
@@ -79,8 +79,8 @@ describe('settings', () => {
     const dir = tempDir();
     writeFileSync(settingsPath(dir), '{');
     expect(loadSettings(dir)).toEqual(DEFAULT_SETTINGS);
-    writeFileSync(settingsPath(dir), JSON.stringify({ revise: false, min_confidence: 'high', extra: 1 }));
-    expect(loadSettings(dir)).toEqual({ ...DEFAULT_SETTINGS, revise: false });
+    writeFileSync(settingsPath(dir), JSON.stringify({ auto_review: false, min_confidence: 'high', revise: false, share_with_claude: false }));
+    expect(loadSettings(dir)).toEqual({ ...DEFAULT_SETTINGS, auto_review: false });
     writeFileSync(settingsPath(dir), '[1, 2]');
     expect(loadSettings(dir)).toEqual(DEFAULT_SETTINGS);
   });
@@ -95,8 +95,6 @@ describe('resolveConfig', () => {
       model: 'jev-latest',
       minConfidence: 0.8,
       autoReview: true,
-      revise: true,
-      shareWithClaude: true,
       maxRevisions: 2,
       maxStatements: 150,
       showInconclusive: true,
@@ -112,7 +110,7 @@ describe('resolveConfig', () => {
       ...DEFAULT_SETTINGS,
       provider: 'openrouter',
       min_confidence: 70,
-      revise: false,
+      auto_review: false,
       max_statements: 40,
       show_inconclusive: false,
     });
@@ -122,7 +120,7 @@ describe('resolveConfig', () => {
       provider: 'openrouter',
       baseUrl: 'https://openrouter.ai/api/v1/systemone',
       minConfidence: 0.7,
-      revise: false,
+      autoReview: false,
       maxStatements: 40,
       showInconclusive: false,
     });
@@ -137,14 +135,13 @@ describe('resolveConfig', () => {
 });
 
 describe('resolveConfig with a settings file it cannot fully read', () => {
-  it('turns revise off for the run and says the file is broken', () => {
+  it('uses the defaults and says the file is broken', () => {
     const dir = tempDir();
-    writeFileSync(settingsPath(dir), '{"revise": false,');
-    expect(resolveConfig({}, {}, dir)).toMatchObject({ revise: false, settingsBroken: true });
+    writeFileSync(settingsPath(dir), '{"auto_review": false,');
+    expect(resolveConfig({}, {}, dir)).toMatchObject({ autoReview: true, settingsBroken: true });
     writeFileSync(settingsPath(dir), JSON.stringify({ model: {} }));
     expect(resolveConfig({}, {}, dir)).toMatchObject({
       model: 'jev-latest',
-      revise: false,
       settingsBroken: true,
     });
   });
@@ -153,7 +150,7 @@ describe('resolveConfig with a settings file it cannot fully read', () => {
     const dir = tempDir();
     expect(resolveConfig({}, {}, dir).settingsBroken).toBeUndefined();
     writeFileSync(settingsPath(dir), JSON.stringify({ extra: 1 }));
-    expect(resolveConfig({}, {}, dir)).toMatchObject({ revise: true });
+    expect(resolveConfig({}, {}, dir)).toMatchObject({ autoReview: true });
     expect(resolveConfig({}, {}, dir).settingsBroken).toBeUndefined();
   });
 });

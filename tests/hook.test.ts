@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Config } from '../src/config.js';
-import { handleHook, type HookInput } from '../src/hook.js';
+import { handleHook, type HookInput, type HookOutput } from '../src/hook.js';
 import { loadState } from '../src/session.js';
 import { DENY_MARKER, REPORT_MARKER } from '../src/transcript.js';
 import {
@@ -24,8 +24,6 @@ function config(overrides: Partial<Config> = {}): Config {
     model: 'jev-latest',
     minConfidence: 0.8,
     autoReview: true,
-    revise: true,
-    shareWithClaude: true,
     maxRevisions: 2,
     maxStatements: 150,
     showInconclusive: true,
@@ -45,35 +43,27 @@ function preToolUse(transcriptPath: string, extra: Partial<HookInput> = {}): Hoo
 }
 
 const missing = () => fakeJev({ covered: () => 0.05 });
+const unsure = () => fakeJev({ covered: () => 0.35 });
+const toClaude = (output: HookOutput | undefined): string =>
+  output?.hookSpecificOutput?.additionalContext ?? output?.hookSpecificOutput?.permissionDecisionReason ?? '';
 
-describe('handleHook with revise off', () => {
-  it('shows the table to the user, shares it with Claude, and never blocks', async () => {
+describe('handleHook when nothing is sure enough to send back', () => {
+  it('gives Claude the table, saves the report, and lets the plan through', async () => {
     const path = writeTranscript([human('Add a CSV export command too.')]);
-    const settings = config({ revise: false });
-    const output = await handleHook(preToolUse(path), settings, missing());
+    const settings = config();
+    const output = await handleHook(preToolUse(path), settings, unsure());
     expect(output?.hookSpecificOutput?.permissionDecision).toBeUndefined();
-    expect(output?.systemMessage).toContain('jev-plan-review: 0 of 1 items reflected in the plan, 1 missing');
-    expect(output?.systemMessage).toContain('NO   95%  requirement  Add a CSV export command too.  [missing]');
+    expect(output?.systemMessage).toBeUndefined();
 
     const reportPath = join(settings.dataDir, 'reports', 'sess.md');
-    const context = output?.hookSpecificOutput?.additionalContext ?? '';
-    expect(context.startsWith(REPORT_MARKER)).toBe(true);
-    expect(context).toContain('NO   95%  requirement  Add a CSV export command too.  [missing]');
+    const context = toClaude(output);
+    expect(context.startsWith(`${REPORT_MARKER} An automatic check of this plan`)).toBe(true);
+    expect(context).toContain('Change the plan because of it only if the user asks.');
+    expect(context).toContain('NO   65%  requirement  Add a CSV export command too.  [missing, unsure]');
     expect(context).toContain(`Full report: ${reportPath}`);
     expect(readFileSync(reportPath, 'utf8')).toContain(
-      '| 1 | requirement | Add a CSV export command too. | NO | 95% | missing |',
+      '| 1 | requirement | Add a CSV export command too. | NO | 65% | missing, unsure |',
     );
-  });
-
-  it('keeps the report from Claude when sharing is off', async () => {
-    const path = writeTranscript([human('Add a CSV export command too.')]);
-    const output = await handleHook(
-      preToolUse(path),
-      config({ revise: false, shareWithClaude: false }),
-      missing(),
-    );
-    expect(output?.hookSpecificOutput).toBeUndefined();
-    expect(output?.systemMessage).toContain('[missing]');
   });
 });
 
@@ -93,7 +83,7 @@ describe('handleHook with automatic review off', () => {
   });
 });
 
-describe('handleHook with revise on', () => {
+describe('handleHook sending the plan back', () => {
   it('sends the plan back twice, then lets it through with the open items marked', async () => {
     const path = writeTranscript([human('Add a CSV export command too.')]);
     const settings = config();
@@ -110,13 +100,13 @@ describe('handleHook with revise on', () => {
 
     const third = await handleHook(preToolUse(path), settings, missing());
     expect(third?.hookSpecificOutput?.permissionDecision).toBeUndefined();
-    expect(third?.hookSpecificOutput?.additionalContext).toContain('[missing]');
-    expect(third?.systemMessage).toContain('Still open after 2 revisions');
-    expect(third?.systemMessage).toContain('[missing]');
+    expect(toClaude(third)).toContain('[missing]');
+    expect(toClaude(third)).toContain('Still open after 2 revisions');
+    expect(third?.systemMessage).toBeUndefined();
 
     const fourth = await handleHook(preToolUse(path), settings, missing());
     expect(fourth?.hookSpecificOutput?.permissionDecision).toBeUndefined();
-    expect(fourth?.systemMessage).toContain('Still open after 2 revisions');
+    expect(toClaude(fourth)).toContain('Still open after 2 revisions');
   });
 
   it('keeps counting when the user speaks but the plan is the same one', async () => {
@@ -153,7 +143,7 @@ describe('handleHook with revise on', () => {
     expect(third?.hookSpecificOutput?.permissionDecisionReason).toContain('revision 3 of 3');
     const fourth = await handleHook(preToolUse(path), settings, missing());
     expect(fourth?.hookSpecificOutput?.permissionDecision).toBeUndefined();
-    expect(fourth?.systemMessage).toContain('Still open after 3 revisions');
+    expect(toClaude(fourth)).toContain('Still open after 3 revisions');
   });
 
   it('keeps counting while only Claude has been working since the send-back', async () => {
@@ -177,20 +167,18 @@ describe('handleHook with revise on', () => {
 
   it('does not act when Jev is less sure than the minimum', async () => {
     const path = writeTranscript([human('Add a CSV export command too.')]);
-    const output = await handleHook(preToolUse(path), config(), fakeJev({ covered: () => 0.35 }));
+    const output = await handleHook(preToolUse(path), config(), unsure());
     expect(output?.hookSpecificOutput?.permissionDecision).toBeUndefined();
-    expect(output?.systemMessage).toContain('[missing, unsure]');
+    expect(toClaude(output)).toContain('[missing, unsure]');
   });
 
   it('hides what Jev was unsure of when show_inconclusive is off', async () => {
     const path = writeTranscript([human('Add a CSV export command too.')]);
     const settings = config({ showInconclusive: false });
-    const output = await handleHook(preToolUse(path), settings, fakeJev({ covered: () => 0.35 }));
+    const output = await handleHook(preToolUse(path), settings, unsure());
     const hidden = '1 inconclusive item(s) are hidden; show_inconclusive is off.';
-    expect(output?.systemMessage).toContain(hidden);
-    expect(output?.systemMessage).not.toContain('Add a CSV export');
-    expect(output?.hookSpecificOutput?.additionalContext).toContain(hidden);
-    expect(output?.hookSpecificOutput?.additionalContext).not.toContain('Add a CSV export');
+    expect(toClaude(output)).toContain(hidden);
+    expect(toClaude(output)).not.toContain('Add a CSV export');
     const report = readFileSync(join(settings.dataDir, 'reports', 'sess.md'), 'utf8');
     expect(report).toContain(hidden);
     expect(report).not.toContain('Add a CSV export');
@@ -200,12 +188,12 @@ describe('handleHook with revise on', () => {
     const path = writeTranscript([human('Add a CSV export command too.')]);
     const output = await handleHook(preToolUse(path), config(), fakeJev());
     expect(output?.hookSpecificOutput?.permissionDecision).toBeUndefined();
-    expect(output?.systemMessage).toContain('1 of 1 items reflected');
+    expect(toClaude(output)).toContain('1 of 1 items reflected');
   });
 });
 
 describe('handleHook when things go wrong', () => {
-  it('steps aside when Jev fails', async () => {
+  it('steps aside when Jev fails, and tells Claude the check was skipped', async () => {
     const path = writeTranscript([human('Add a CSV export command too.')]);
     const failing = {
       ask: async () => {
@@ -213,25 +201,34 @@ describe('handleHook when things go wrong', () => {
       },
     };
     const output = await handleHook(preToolUse(path), config(), failing);
-    expect(output).toEqual({ systemMessage: 'jev-plan-review: skipped — Jev request failed (503): busy' });
+    expect(output).toEqual({
+      systemMessage: 'jev-plan-review: skipped — Jev request failed (503): busy',
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        additionalContext: `${REPORT_MARKER} The automatic check of this plan was skipped: Jev request failed (503): busy`,
+      },
+    });
   });
 
   it('steps aside without a key', async () => {
     const path = writeTranscript([human('Add a CSV export command too.')]);
     const output = await handleHook(preToolUse(path), config({ apiKey: undefined }));
-    expect(output?.hookSpecificOutput).toBeUndefined();
+    expect(output?.hookSpecificOutput?.permissionDecision).toBeUndefined();
+    expect(toClaude(output)).toContain('was skipped: no TypeSafe API key');
     expect(output?.systemMessage).toContain('skipped — no TypeSafe API key');
     expect(output?.systemMessage).toContain('/jev-plan-review:settings');
   });
 
-  it('tells the user when the settings file could not be read', async () => {
+  it('reviews but sends nothing back when the settings file could not be read', async () => {
     const path = writeTranscript([human('Add a CSV export command too.')]);
-    const broken = config({ revise: false, settingsBroken: true });
+    const broken = config({ settingsBroken: true });
     const reviewed = await handleHook(preToolUse(path), broken, missing());
     expect(reviewed?.hookSpecificOutput?.permissionDecision).toBeUndefined();
-    expect(reviewed?.systemMessage).toContain('settings.json could not be read');
+    expect(toClaude(reviewed)).toContain('settings.json could not be read');
+    expect(toClaude(reviewed)).toContain('[missing]');
     const skipped = await handleHook(preToolUse(path), { ...broken, apiKey: undefined });
     expect(skipped?.systemMessage).toContain('settings.json could not be read');
+    expect(toClaude(skipped)).toContain('settings.json could not be read');
   });
 
   it('ignores subagents and unknown events', async () => {
@@ -244,19 +241,19 @@ describe('handleHook when things go wrong', () => {
 describe('handleHook window tracking', () => {
   it('forgets what was said before an approved plan', async () => {
     const path = writeTranscript([human('Use SQLite for the storage layer.')]);
-    const settings = config({ revise: false });
+    const settings = config();
     await handleHook({ hook_event_name: 'PostToolUse', session_id: 'sess', transcript_path: path }, settings);
     expect(loadState(settings.dataDir, 'sess')).toMatchObject({ approvedLine: 1, revisions: 0 });
 
     writeTranscript([human('Use SQLite for the storage layer.'), human('Add a CSV export command too.')], path);
     const output = await handleHook(preToolUse(path), settings, missing());
-    expect(output?.systemMessage).toContain('Add a CSV export');
-    expect(output?.systemMessage).not.toContain('SQLite');
+    expect(toClaude(output)).toContain('Add a CSV export');
+    expect(toClaude(output)).not.toContain('SQLite');
   });
 
   it('forgets what was said before /clear, and only on /clear', async () => {
     const path = writeTranscript([human('Use SQLite for the storage layer.')]);
-    const settings = config({ revise: false });
+    const settings = config();
     await handleHook({ hook_event_name: 'SessionStart', source: 'startup', session_id: 'sess', transcript_path: path }, settings);
     expect(loadState(settings.dataDir, 'sess').clearLine).toBe(0);
     await handleHook({ hook_event_name: 'SessionStart', source: 'clear', session_id: 'sess', transcript_path: path }, settings);
@@ -267,13 +264,13 @@ describe('handleHook window tracking', () => {
     const path = writeTranscript([human('Add a CSV export command too.')]);
     const planFile = join(tempDir(), 'plan.md');
     writeFileSync(planFile, 'Add a CSV export command.');
-    const settings = config({ revise: false });
+    const settings = config();
     const output = await handleHook(
       preToolUse(path, { tool_input: { planFilePath: planFile } }),
       settings,
       fakeJev({ covered: (_id, plan) => (plan.includes('CSV export') ? 0.9 : 0.1) }),
     );
-    expect(output?.systemMessage).toContain('1 of 1 items reflected');
+    expect(toClaude(output)).toContain('1 of 1 items reflected');
     expect(loadState(settings.dataDir, 'sess').lastPlanFilePath).toBe(planFile);
   });
 });

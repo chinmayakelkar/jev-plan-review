@@ -18,8 +18,6 @@ export interface Settings {
   provider: Provider;
   min_confidence: number;
   auto_review: boolean;
-  revise: boolean;
-  share_with_claude: boolean;
   max_revisions: number;
   max_statements: number;
   show_inconclusive: boolean;
@@ -30,8 +28,6 @@ export const DEFAULT_SETTINGS: Settings = {
   provider: 'typesafe',
   min_confidence: 80,
   auto_review: true,
-  revise: true,
-  share_with_claude: true,
   max_revisions: 2,
   max_statements: 150,
   show_inconclusive: true,
@@ -45,8 +41,6 @@ export interface Config {
   model: string;
   minConfidence: number;
   autoReview: boolean;
-  revise: boolean;
-  shareWithClaude: boolean;
   maxRevisions: number;
   maxStatements: number;
   showInconclusive: boolean;
@@ -85,8 +79,6 @@ export function withSetting(settings: Settings, key: string, raw: unknown): Sett
       return { ...settings, min_confidence: percent };
     }
     case 'auto_review':
-    case 'revise':
-    case 'share_with_claude':
     case 'show_inconclusive':
       return { ...settings, [key]: toggle(key, value) };
     case 'max_revisions':
@@ -180,8 +172,6 @@ export function resolveConfig(env: Env, settingsEnv: Env = {}, dataDir?: string)
     model: settings.model,
     minConfidence: settings.min_confidence / 100,
     autoReview: settings.auto_review,
-    revise: settings.revise && !broken,
-    shareWithClaude: settings.share_with_claude,
     maxRevisions: settings.max_revisions,
     maxStatements: settings.max_statements,
     showInconclusive: settings.show_inconclusive,

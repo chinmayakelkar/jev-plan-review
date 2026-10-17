@@ -11,8 +11,6 @@ function config(overrides: Partial<Config> = {}): Config {
     model: 'jev-latest',
     minConfidence: 0.8,
     autoReview: true,
-    revise: true,
-    shareWithClaude: true,
     maxRevisions: 2,
     maxStatements: 150,
     showInconclusive: true,

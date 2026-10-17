@@ -1,10 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { readSettingsEnv, resolveConfig, type Config } from './config.js';
 import type { JevAsker } from './jev.js';
-import { claudeContext, renderMarkdown, renderText, revisionRequest } from './report.js';
+import { claudeContext, renderMarkdown, revisionRequest } from './report.js';
 import { runReview } from './run.js';
 import { loadState, saveReport, saveState } from './session.js';
-import { readTranscript } from './transcript.js';
+import { readTranscript, REPORT_MARKER } from './transcript.js';
 
 const BROKEN_SETTINGS =
   'settings.json could not be read in full, so defaults were used and no plan was sent back; run /jev-plan-review:settings to fix it.';
@@ -25,6 +25,16 @@ export interface HookOutput {
     permissionDecision?: 'deny';
     permissionDecisionReason?: string;
     additionalContext?: string;
+  };
+}
+
+function skipped(reason: string): HookOutput {
+  return {
+    systemMessage: `jev-plan-review: skipped — ${reason}`,
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      additionalContext: `${REPORT_MARKER} The automatic check of this plan was skipped: ${reason}`,
+    },
   };
 }
 
@@ -82,8 +92,7 @@ export async function handleHook(
 
   if (outcome.kind === 'skipped') {
     saveState(config.dataDir, sessionId, remembered);
-    const broken = config.settingsBroken ? `. ${BROKEN_SETTINGS}` : '';
-    return { systemMessage: `jev-plan-review: skipped — ${outcome.reason}${broken}` };
+    return skipped(`${outcome.reason}${config.settingsBroken ? `. ${BROKEN_SETTINGS}` : ''}`);
   }
 
   const newPlanFile =
@@ -93,7 +102,7 @@ export async function handleHook(
   const revisions = newPlanFile ? 0 : state.revisions;
   const max = config.maxRevisions;
   const open = outcome.result.verdicts.filter((verdict) => verdict.actionable);
-  if (config.revise && open.length > 0 && revisions < max) {
+  if (!config.settingsBroken && open.length > 0 && revisions < max) {
     const revision = revisions + 1;
     saveState(config.dataDir, sessionId, { ...remembered, revisions: revision });
     return {
@@ -108,7 +117,7 @@ export async function handleHook(
 
   saveState(config.dataDir, sessionId, { ...remembered, revisions });
   const notes: string[] = config.settingsBroken ? [BROKEN_SETTINGS] : [];
-  if (config.revise && open.length > 0) {
+  if (!config.settingsBroken && open.length > 0) {
     notes.push(`Still open after ${max} revisions; the plan is shown as it stands.`);
   }
   if (outcome.overLimit > 0) {
@@ -120,20 +129,15 @@ export async function handleHook(
     sessionId,
     renderMarkdown(outcome.result, { showInconclusive }),
   );
-  const output: HookOutput = {
-    systemMessage: renderText(outcome.result, {
-      reportPath,
-      showInconclusive,
-      ...(notes.length ? { note: notes.join(' ') } : {}),
-    }),
-  };
-  if (config.shareWithClaude) {
-    output.hookSpecificOutput = {
+  return {
+    hookSpecificOutput: {
       hookEventName: 'PreToolUse',
-      additionalContext: claudeContext(outcome.result, reportPath, showInconclusive),
-    };
-  }
-  return output;
+      additionalContext: claudeContext(outcome.result, reportPath, {
+        showInconclusive,
+        ...(notes.length ? { note: notes.join(' ') } : {}),
+      }),
+    },
+  };
 }
 
 export async function main(): Promise<void> {
@@ -145,9 +149,7 @@ export async function main(): Promise<void> {
     const input = JSON.parse(raw) as HookInput;
     output = await handleHook(input, resolveConfig(process.env, readSettingsEnv(process.env)));
   } catch (error) {
-    output = {
-      systemMessage: `jev-plan-review: skipped — ${error instanceof Error ? error.message : String(error)}`,
-    };
+    output = skipped(error instanceof Error ? error.message : String(error));
   }
   if (output) process.stdout.write(JSON.stringify(output));
 }

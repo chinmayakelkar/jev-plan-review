@@ -15,9 +15,11 @@ reading all of it to confirm each call was captured is slow.
 It runs in two ways:
 
 - **A hook on plan mode.** When Claude is about to show you a plan, the hook
-  checks it first, and can send it back to Claude to fix.
+  checks it first and sends it back to Claude to fix anything Jev is sure is
+  missing or contradicted. Claude gets the table; the approval screen does
+  not show it.
 - **A command.** `/jev-plan-review:review <file>` checks any plan file and
-  reports only.
+  shows you the table. It never changes the plan.
 
 ```
 jev-plan-review: 3 of 5 items reflected in the plan, 1 missing, 1 contradicted (1 unsure)
@@ -55,21 +57,20 @@ your threshold is marked `unsure`.
    at 50% or more means *yes*. Otherwise *no*, with confidence of one minus
    the reflect score. An answer below your confidence threshold is marked
    *unsure*.
-6. **Revise, if you left that on.** Items Jev is sure are missing or
-   contradicted are sent back to Claude to fix, at most twice unless you
-   change `max_revisions`; you see a one-line note while Claude revises.
-   Unsure items are never sent back. The count resets when you approve a
-   plan, run `/clear`, or Claude starts a new plan file. After the last
-   revision the plugin still reviews the plan, but only reports.
-7. **Report.** The table is shown next to the plan, and the plan waits for
-   you as usual. Claude is given the same table, with a note that it is yours
-   to act on, so you can say "fix the missing ones" and be understood. The
-   full report is saved to `reports/` in the plugin's data folder.
+6. **Revise (hook only).** Items Jev is sure are missing or contradicted are
+   sent back to Claude to fix, at most twice unless you change
+   `max_revisions`. Unsure items are never sent back. The count resets when
+   you approve a plan, run `/clear`, or Claude starts a new plan file. After
+   the last revision the plan is let through with the open items marked.
+7. **Report.** The hook gives Claude the table when it lets a plan through,
+   and the plan waits for you as usual. To see the table, ask Claude what
+   the review found. The command shows you the table directly. Either way,
+   the full report is saved to `reports/` in the plugin's data folder.
 
 Requests are paced under TypeSafe's rate limits and retried twice when the
 service is busy. If the key is missing, Jev fails, or an answer is malformed,
-the hook shows a one-line note and lets the plan through. It never blocks
-because of its own trouble.
+the hook tells Claude the check was skipped and lets the plan through. It
+never blocks because of its own trouble.
 
 ## Install
 
@@ -130,20 +131,18 @@ You can also name the change directly:
 
 ```
 /jev-plan-review:settings
-/jev-plan-review:settings revise off
+/jev-plan-review:settings min_confidence 90
 /jev-plan-review:settings provider openrouter
 ```
 
 | Setting | Default | Description |
 | --- | --- | --- |
 | `provider` | `typesafe` | `typesafe` or `openrouter`. Decides where requests go and which key is used. |
-| `min_confidence` | `80` | Percent, 50–100. An answer below this is marked `unsure`, and revise leaves it alone. |
-| `auto_review` | `on` | Review every plan-mode plan before it is shown. When off, only the review command runs a check. |
-| `revise` | `on` | Send a plan back to Claude when items are missing or contradicted. When off, the plugin only reports and you decide what to do. |
-| `max_revisions` | `2` | How many times revise may send one plan back. Any whole number from 1 up. |
+| `min_confidence` | `80` | Percent, 50–100. An answer below this is marked `unsure` and is never sent back to Claude. |
+| `auto_review` | `on` | Review every plan-mode plan before it is shown, and send it back to Claude when needed. When off, only the review command runs a check. |
+| `max_revisions` | `2` | How many times the hook may send one plan back. Any whole number from 1 up. |
 | `max_statements` | `150` | How many statements one review may check. Any whole number from 1 up. More statements mean more Jev questions and a longer wait. |
 | `show_inconclusive` | `on` | Show the rows Jev was unsure of: `unsure` answers and `not checked` statements. When off they are left out of the table and the saved report, and one line says how many were hidden. |
-| `share_with_claude` | `on` | Give Claude the same table you see. |
 | `model` | `jev-latest` | Jev model name. |
 
 A change takes effect at once. Settings cannot be changed while plan mode
@@ -155,6 +154,10 @@ never stored there.
 
 - A confidence score is not a proof. The table tells you where to look; you
   still decide.
+- The approval screen does not show anything from the hook: not the table,
+  and not a note that the review was skipped. Ask Claude what the review
+  found, and run `/jev-plan-review:settings` to check that your API key is
+  found.
 - Statements are split at bullets, numbered items and sentence ends; code
   blocks are skipped. An odd abbreviation or initial can split a sentence
   wrongly, and a statement that needs its neighbours may be judged poorly.

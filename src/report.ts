@@ -143,12 +143,12 @@ export function revisionRequest(result: ReviewResult, revision: number, max: num
 export function claudeContext(
   result: ReviewResult,
   reportPath: string,
-  showInconclusive = true,
+  options: { showInconclusive?: boolean; note?: string } = {},
 ): string {
   return [
-    `${REPORT_MARKER} This plan was checked against what the user said while it was prepared. The report below is for the user to act on. Do not change the plan because of it unless the user asks.`,
+    `${REPORT_MARKER} An automatic check of this plan against what the user said while it was prepared. Change the plan because of it only if the user asks.`,
     '',
-    renderText(result, { maxChars: 8000, reportPath, showInconclusive }),
+    renderText(result, { maxChars: 8000, reportPath, ...options }),
     '',
     `Full report: ${reportPath}`,
   ].join('\n');

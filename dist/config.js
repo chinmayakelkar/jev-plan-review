@@ -14,8 +14,6 @@ export const DEFAULT_SETTINGS = {
     provider: 'typesafe',
     min_confidence: 80,
     auto_review: true,
-    revise: true,
-    share_with_claude: true,
     max_revisions: 2,
     max_statements: 150,
     show_inconclusive: true,
@@ -51,8 +49,6 @@ export function withSetting(settings, key, raw) {
             return { ...settings, min_confidence: percent };
         }
         case 'auto_review':
-        case 'revise':
-        case 'share_with_claude':
         case 'show_inconclusive':
             return { ...settings, [key]: toggle(key, value) };
         case 'max_revisions':
@@ -143,8 +139,6 @@ export function resolveConfig(env, settingsEnv = {}, dataDir) {
         model: settings.model,
         minConfidence: settings.min_confidence / 100,
         autoReview: settings.auto_review,
-        revise: settings.revise && !broken,
-        shareWithClaude: settings.share_with_claude,
         maxRevisions: settings.max_revisions,
         maxStatements: settings.max_statements,
         showInconclusive: settings.show_inconclusive,

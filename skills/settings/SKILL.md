@@ -1,6 +1,6 @@
 ---
 name: settings
-description: Show or change the jev-plan-review settings, which are the Jev provider (TypeSafe or OpenRouter), the confidence threshold, automatic review, revise mode and its limit, the statement limit, showing unsure items, and sharing the report with Claude. Use only when the user asks to see or change jev-plan-review settings.
+description: Show or change the jev-plan-review settings, which are the Jev provider (TypeSafe or OpenRouter), the confidence threshold, automatic review and how many times it may send a plan back, the statement limit, and showing unsure items. Use only when the user asks to see or change jev-plan-review settings.
 argument-hint: "[name value]..."
 disable-model-invocation: true
 ---
@@ -13,17 +13,15 @@ The user's arguments, if any: $ARGUMENTS
    node "${CLAUDE_PLUGIN_ROOT}/dist/bin/cli.js" settings --data-dir "${CLAUDE_PLUGIN_DATA}"
    ```
 
-2. If the user's arguments already say what to change, for example `revise off` or `provider openrouter`, go to step 4 with those changes.
+2. If the user's arguments already say what to change, for example `min_confidence 90` or `provider openrouter`, go to step 4 with those changes.
 
-3. Otherwise ask with the AskUserQuestion tool. In every question, put the current value first and add "(current)" to its label. Ask these four in one call:
+3. Otherwise ask with the AskUserQuestion tool. In every question, put the current value first and add "(current)" to its label. Ask these three in one call:
    - Provider: TypeSafe, OpenRouter
    - Confidence threshold: 70, 80, 90. The user may type any number from 50 to 100.
-   - Automatic review of plan-mode plans: On, Off
-   - Revise mode, which sends a plan back to Claude when items are missing or contradicted: On, Off
+   - Automatic review of plan-mode plans, which sends a plan back to Claude when items are missing or contradicted: On, Off
 
-   Then ask these four in a second call:
-   - Share the report with Claude: On, Off
-   - How many times revise may send one plan back: 1, 2, 3, 5. The user may type any whole number from 1 up.
+   Then ask these three in a second call:
+   - How many times the review may send one plan back: 1, 2, 3, 5. The user may type any whole number from 1 up.
    - Show items Jev was unsure of in the report: On, Off
    - How many statements one review may check: 75, 150, 300, 500. The user may type any whole number from 1 up.
 
@@ -33,7 +31,7 @@ The user's arguments, if any: $ARGUMENTS
    node "${CLAUDE_PLUGIN_ROOT}/dist/bin/cli.js" settings --data-dir "${CLAUDE_PLUGIN_DATA}" --set provider=openrouter --set min_confidence=85
    ```
 
-   The names are `provider` (typesafe or openrouter), `min_confidence` (50 to 100), `auto_review`, `revise`, `share_with_claude`, `show_inconclusive` (each on or off), `max_revisions`, `max_statements` (each a whole number, 1 or more), and `model`. If nothing differs, run nothing.
+   The names are `provider` (typesafe or openrouter), `min_confidence` (50 to 100), `auto_review`, `show_inconclusive` (each on or off), `max_revisions`, `max_statements` (each a whole number, 1 or more), and `model`. If nothing differs, run nothing.
 
 5. Show the last command's output to the user as printed. Changes take effect at once. If the output says an API key is not set, pass on its instructions.
 

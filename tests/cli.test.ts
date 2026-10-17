@@ -102,8 +102,8 @@ describe('runCli settings', () => {
     expect(output).toMatch(/provider\s+typesafe/);
     expect(output).toMatch(/min_confidence\s+80/);
     expect(output).toMatch(/auto_review\s+on/);
-    expect(output).toMatch(/revise\s+on/);
-    expect(output).toMatch(/share_with_claude\s+on/);
+    expect(output).not.toMatch(/revise\s/);
+    expect(output).not.toContain('share_with_claude');
     expect(output).toMatch(/max_revisions\s+2/);
     expect(output).toMatch(/max_statements\s+150/);
     expect(output).toMatch(/show_inconclusive\s+on/);
@@ -116,19 +116,19 @@ describe('runCli settings', () => {
     const dataDir = tempDir();
     const env = { CLAUDE_CONFIG_DIR: tempDir(), OPENROUTER_API_KEY: 'or-key' };
     const { code, output } = await runCli(
-      ['settings', '--data-dir', dataDir, '--set', 'provider=openrouter', '--set', 'min_confidence=90', '--set', 'revise=off'],
+      ['settings', '--data-dir', dataDir, '--set', 'provider=openrouter', '--set', 'min_confidence=90', '--set', 'auto_review=off'],
       env,
     );
     expect(code).toBe(0);
     expect(output).toMatch(/provider\s+openrouter/);
-    expect(output).toMatch(/revise\s+off/);
+    expect(output).toMatch(/auto_review\s+off/);
     expect(output).toContain('OPENROUTER_API_KEY is set');
     expect(output).not.toContain('or-key');
     expect(loadSettings(dataDir)).toEqual({
       ...DEFAULT_SETTINGS,
       provider: 'openrouter',
       min_confidence: 90,
-      revise: false,
+      auto_review: false,
     });
   });
 
@@ -143,16 +143,16 @@ describe('runCli settings', () => {
     const dataDir = tempDir();
     const env = { CLAUDE_CONFIG_DIR: tempDir() };
     const bad = await runCli(
-      ['settings', '--data-dir', dataDir, '--set', 'revise=off', '--set', 'min_confidence=20'],
+      ['settings', '--data-dir', dataDir, '--set', 'auto_review=off', '--set', 'min_confidence=20'],
       env,
     );
     expect(bad).toEqual({
       code: 1,
       output: 'Nothing was changed: min_confidence must be a number from 50 to 100',
     });
-    expect(loadSettings(dataDir).revise).toBe(true);
+    expect(loadSettings(dataDir).auto_review).toBe(true);
 
-    const shapeless = await runCli(['settings', '--data-dir', dataDir, '--set', 'revise'], env);
-    expect(shapeless.output).toBe('Nothing was changed: expected <name>=<value>, got "revise"');
+    const shapeless = await runCli(['settings', '--data-dir', dataDir, '--set', 'auto_review'], env);
+    expect(shapeless.output).toBe('Nothing was changed: expected <name>=<value>, got "auto_review"');
   });
 });

@@ -106,11 +106,11 @@ export function revisionRequest(result, revision, max) {
     lines.push('', 'Change only what these items need. The user already said these things, so do not ask about them again unless two of them conflict with each other.');
     return lines.join('\n');
 }
-export function claudeContext(result, reportPath, showInconclusive = true) {
+export function claudeContext(result, reportPath, options = {}) {
     return [
-        `${REPORT_MARKER} This plan was checked against what the user said while it was prepared. The report below is for the user to act on. Do not change the plan because of it unless the user asks.`,
+        `${REPORT_MARKER} An automatic check of this plan against what the user said while it was prepared. Change the plan because of it only if the user asks.`,
         '',
-        renderText(result, { maxChars: 8000, reportPath, showInconclusive }),
+        renderText(result, { maxChars: 8000, reportPath, ...options }),
         '',
         `Full report: ${reportPath}`,
     ].join('\n');
