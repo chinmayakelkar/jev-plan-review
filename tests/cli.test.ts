@@ -155,4 +155,17 @@ describe('runCli settings', () => {
     const shapeless = await runCli(['settings', '--data-dir', dataDir, '--set', 'auto_review'], env);
     expect(shapeless.output).toBe('Nothing was changed: expected <name>=<value>, got "auto_review"');
   });
+
+  it('refuses the removed settings and changes nothing', async () => {
+    const dataDir = tempDir();
+    const env = { CLAUDE_CONFIG_DIR: tempDir() };
+    for (const name of ['revise', 'share_with_claude']) {
+      const { code, output } = await runCli(['settings', '--data-dir', dataDir, '--set', `${name}=off`], env);
+      expect(code).toBe(1);
+      expect(output).toBe(
+        `Nothing was changed: unknown setting ${name}; the settings are ${Object.keys(DEFAULT_SETTINGS).join(', ')}`,
+      );
+    }
+    expect(loadSettings(dataDir)).toEqual(DEFAULT_SETTINGS);
+  });
 });

@@ -210,6 +210,15 @@ describe('claudeContext', () => {
     expect(text).toContain('Full report: D:/data/reports/sess.md');
   });
 
+  it('puts the note straight after the marker line, before the summary', () => {
+    const lines = claudeContext(mixed, 'D:/data/reports/sess.md', { note: 'Still open.' }).split('\n');
+    expect(lines[0].startsWith(REPORT_MARKER)).toBe(true);
+    expect(lines[1]).toBe('Still open.');
+    expect(lines[2]).toBe('');
+    expect(lines[3]).toBe(summaryLine(mixed));
+    expect(lines.filter((line) => line === 'Still open.')).toHaveLength(1);
+  });
+
   it('stays under the hook output limit for a very long table', () => {
     const many = resultOf(Array.from({ length: 400 }, () => verdict({})));
     const text = claudeContext(many, 'D:/data/reports/sess.md');

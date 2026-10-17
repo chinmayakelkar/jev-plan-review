@@ -1,8 +1,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { Readable } from 'node:stream';
+import { describe, expect, it, vi } from 'vitest';
 import type { Config } from '../src/config.js';
-import { handleHook, type HookInput, type HookOutput } from '../src/hook.js';
+import { handleHook, main, type HookInput, type HookOutput } from '../src/hook.js';
 import { loadState } from '../src/session.js';
 import { DENY_MARKER, REPORT_MARKER } from '../src/transcript.js';
 import {
@@ -208,6 +209,29 @@ describe('handleHook when things go wrong', () => {
         additionalContext: `${REPORT_MARKER} The automatic check of this plan was skipped: Jev request failed (503): busy`,
       },
     });
+  });
+
+  it('steps aside when Jev gives a malformed answer, and tells Claude the check was skipped', async () => {
+    const path = writeTranscript([human('Add a CSV export command too.')]);
+    const output = await handleHook(preToolUse(path), config(), { ask: async () => ({ answers: {} }) });
+    expect(output?.hookSpecificOutput?.permissionDecision).toBeUndefined();
+    expect(output?.systemMessage).toContain('jev-plan-review: skipped — Invalid Jev answer');
+    expect(toClaude(output)).toContain(`${REPORT_MARKER} The automatic check of this plan was skipped: Invalid Jev answer`);
+  });
+
+  it('tells Claude the check was skipped when the hook input cannot be read', async () => {
+    const stdin = Object.getOwnPropertyDescriptor(process, 'stdin')!;
+    Object.defineProperty(process, 'stdin', { value: Readable.from(['not json']), configurable: true });
+    const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    try {
+      await main();
+      const output = JSON.parse(String(write.mock.calls[0][0])) as HookOutput;
+      expect(output.systemMessage).toContain('jev-plan-review: skipped — ');
+      expect(toClaude(output)).toContain(`${REPORT_MARKER} The automatic check of this plan was skipped: `);
+    } finally {
+      write.mockRestore();
+      Object.defineProperty(process, 'stdin', stdin);
+    }
   });
 
   it('steps aside without a key', async () => {

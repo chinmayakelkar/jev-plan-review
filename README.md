@@ -140,7 +140,7 @@ You can also name the change directly:
 | `provider` | `typesafe` | `typesafe` or `openrouter`. Decides where requests go and which key is used. |
 | `min_confidence` | `80` | Percent, 50–100. An answer below this is marked `unsure` and is never sent back to Claude. |
 | `auto_review` | `on` | Review every plan-mode plan before it is shown, and send it back to Claude when needed. When off, only the review command runs a check. |
-| `max_revisions` | `2` | How many times the hook may send one plan back. Any whole number from 1 up. |
+| `max_revisions` | `2` | How many times one plan may be sent back. Any whole number from 1 up. |
 | `max_statements` | `150` | How many statements one review may check. Any whole number from 1 up. More statements mean more Jev questions and a longer wait. |
 | `show_inconclusive` | `on` | Show the rows Jev was unsure of: `unsure` answers and `not checked` statements. When off they are left out of the table and the saved report, and one line says how many were hidden. |
 | `model` | `jev-latest` | Jev model name. |

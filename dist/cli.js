@@ -13,7 +13,7 @@ const SETTING_HELP = {
     provider: 'typesafe or openrouter: where Jev requests are sent',
     min_confidence: '50 to 100: answers below this are marked unsure and are never sent back to Claude',
     auto_review: 'on or off: review every plan-mode plan before it is shown',
-    max_revisions: '1 or more: how many times the hook may send one plan back to Claude',
+    max_revisions: '1 or more: how many times one plan may be sent back',
     max_statements: '1 or more: how many statements one review may check',
     show_inconclusive: 'on or off: show items Jev was unsure of',
     model: 'the Jev model name',

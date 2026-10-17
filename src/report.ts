@@ -147,8 +147,9 @@ export function claudeContext(
 ): string {
   return [
     `${REPORT_MARKER} An automatic check of this plan against what the user said while it was prepared. Change the plan because of it only if the user asks.`,
+    ...(options.note ? [options.note] : []),
     '',
-    renderText(result, { maxChars: 8000, reportPath, ...options }),
+    renderText(result, { maxChars: 8000, reportPath, showInconclusive: options.showInconclusive }),
     '',
     `Full report: ${reportPath}`,
   ].join('\n');

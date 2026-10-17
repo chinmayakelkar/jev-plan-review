@@ -1,6 +1,6 @@
 ---
 name: settings
-description: Show or change the jev-plan-review settings, which are the Jev provider (TypeSafe or OpenRouter), the confidence threshold, automatic review and how many times it may send a plan back, the statement limit, and showing unsure items. Use only when the user asks to see or change jev-plan-review settings.
+description: Show or change the jev-plan-review settings, which are the Jev provider (TypeSafe or OpenRouter), the confidence threshold, automatic review and how many times one plan may be sent back, the statement limit, and showing unsure items. Use only when the user asks to see or change jev-plan-review settings.
 argument-hint: "[name value]..."
 disable-model-invocation: true
 ---
@@ -21,7 +21,7 @@ The user's arguments, if any: $ARGUMENTS
    - Automatic review of plan-mode plans, which sends a plan back to Claude when items are missing or contradicted: On, Off
 
    Then ask these three in a second call:
-   - How many times the review may send one plan back: 1, 2, 3, 5. The user may type any whole number from 1 up.
+   - How many times one plan may be sent back: 1, 2, 3, 5. The user may type any whole number from 1 up.
    - Show items Jev was unsure of in the report: On, Off
    - How many statements one review may check: 75, 150, 300, 500. The user may type any whole number from 1 up.
 

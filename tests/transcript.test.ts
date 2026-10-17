@@ -64,7 +64,7 @@ describe('collectSources', () => {
   it('drops the arguments of this plugin’s own commands', () => {
     const sources = collectSources([
       human(
-        '<command-message>jev-plan-review:settings</command-message>\n<command-name>/jev-plan-review:settings</command-name>\n<command-args>revise off</command-args>',
+        '<command-message>jev-plan-review:settings</command-message>\n<command-name>/jev-plan-review:settings</command-name>\n<command-args>min_confidence 90</command-args>',
       ),
       human(
         '<command-message>jev-plan-review:review</command-message>\n<command-name>/jev-plan-review:review</command-name>\n<command-args>--since-clear</command-args>',
