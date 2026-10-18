@@ -188,3 +188,13 @@ describe('runReview and mentioned files', () => {
     expect(plain.result.files).toBeUndefined();
   });
 });
+
+describe('runReview without a key', () => {
+  it('names the settings file to put the key in', async () => {
+    const input = { plan: 'Export as CSV.', transcriptPath: transcript(), windowStart: 0 };
+    const named = await runReview({ ...input, config: config({ apiKey: undefined, settingsFile: 'D:/cfg/settings.json' }) });
+    const plain = await runReview({ ...input, config: config({ apiKey: undefined }) });
+    expect(named.kind === 'skipped' && named.reason).toContain('"env" section of D:/cfg/settings.json');
+    expect(plain.kind === 'skipped' && plain.reason).toContain('"env" section of ~/.claude/settings.json');
+  });
+});

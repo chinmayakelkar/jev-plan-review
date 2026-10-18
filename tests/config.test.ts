@@ -22,7 +22,7 @@ describe('given', () => {
 
 describe('readOptions', () => {
   it('starts from the defaults', () => {
-    expect(readOptions({})).toEqual({ settings: DEFAULT_SETTINGS, broken: false });
+    expect(readOptions({})).toEqual({ settings: DEFAULT_SETTINGS, problems: [] });
     expect(DEFAULT_SETTINGS).toEqual({
       provider: 'typesafe',
       min_confidence: 80,
@@ -44,21 +44,21 @@ describe('readOptions', () => {
       }),
     ).toEqual({
       settings: { ...DEFAULT_SETTINGS, min_confidence: 90, auto_review: false, provider: 'openrouter' },
-      broken: false,
+      problems: [],
     });
   });
 
   it('falls back to the default for a bad value and says so', () => {
     expect(readOptions({ CLAUDE_PLUGIN_OPTION_MIN_CONFIDENCE: 'abc' })).toEqual({
       settings: DEFAULT_SETTINGS,
-      broken: true,
+      problems: ['min_confidence must be a number from 50 to 100; used 80'],
     });
   });
 
   it('treats an unsubstituted placeholder as not given', () => {
     expect(readOptions({ CLAUDE_PLUGIN_OPTION_MODEL: '${user_config.model}' })).toEqual({
       settings: DEFAULT_SETTINGS,
-      broken: false,
+      problems: [],
     });
   });
 });
@@ -116,6 +116,7 @@ describe('resolveConfig', () => {
       showInconclusive: true,
       reverseCheck: true,
       dataDir: dir,
+      settingsFile: '~/.claude/settings.json',
     });
     expect(resolveConfig({ CLAUDE_PLUGIN_DATA: dir }).dataDir).toBe(dir);
     expect(resolveConfig({}).dataDir.endsWith('jev-plan-review')).toBe(true);
@@ -152,16 +153,28 @@ describe('resolveConfig', () => {
 });
 
 describe('resolveConfig with a plugin option it cannot use', () => {
-  it('uses the default and says the settings are broken', () => {
-    const dir = tempDir();
-    expect(resolveConfig({ CLAUDE_PLUGIN_OPTION_MAX_REVISIONS: 'many' }, {}, dir)).toMatchObject({
-      maxRevisions: 2,
-      settingsBroken: true,
-    });
+  it('uses the default and names what was wrong', () => {
+    const options = readOptions({ CLAUDE_PLUGIN_OPTION_MAX_REVISIONS: '2.5' });
+    expect(options.settings.max_revisions).toBe(2);
+    expect(options.problems).toEqual(['max_revisions must be a whole number, 1 or more; used 2']);
+    expect(readOptions({ CLAUDE_PLUGIN_OPTION_AUTO_REVIEW: 'maybe' }).problems).toEqual([
+      'auto_review must be on or off; used on',
+    ]);
   });
 
-  it('does not call a missing option broken', () => {
-    expect(resolveConfig({}, {}, tempDir()).settingsBroken).toBeUndefined();
+  it('carries the problems in the config, and none for a missing option', () => {
+    const dir = tempDir();
+    expect(resolveConfig({ CLAUDE_PLUGIN_OPTION_MIN_CONFIDENCE: '20' }, {}, dir).optionProblems).toEqual([
+      'min_confidence must be a number from 50 to 100; used 80',
+    ]);
+    expect(resolveConfig({}, {}, dir).optionProblems).toBeUndefined();
+  });
+});
+
+describe('resolveConfig settingsFile', () => {
+  it('names the settings file in the Claude config directory', () => {
+    expect(resolveConfig({ CLAUDE_CONFIG_DIR: 'D:/cfg' }, {}, tempDir()).settingsFile).toBe(join('D:/cfg', 'settings.json'));
+    expect(resolveConfig({}, {}, tempDir()).settingsFile).toBe('~/.claude/settings.json');
   });
 });
 

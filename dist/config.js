@@ -70,9 +70,12 @@ export function withSetting(settings, key, raw) {
     }
 }
 export const OPTION_PREFIX = 'CLAUDE_PLUGIN_OPTION_';
+function shown(value) {
+    return typeof value === 'boolean' ? (value ? 'on' : 'off') : String(value);
+}
 export function readOptions(env) {
     let settings = DEFAULT_SETTINGS;
-    let broken = false;
+    const problems = [];
     for (const key of Object.keys(DEFAULT_SETTINGS)) {
         const value = given(env[OPTION_PREFIX + key.toUpperCase()]);
         if (value === undefined)
@@ -80,11 +83,14 @@ export function readOptions(env) {
         try {
             settings = withSetting(settings, key, value);
         }
-        catch {
-            broken = true;
+        catch (error) {
+            problems.push(`${error instanceof Error ? error.message : String(error)}; used ${shown(DEFAULT_SETTINGS[key])}`);
         }
     }
-    return { settings, broken };
+    return { settings, problems };
+}
+export function optionNote(problems) {
+    return `${problems.join('; ')}; fix it in /config`;
 }
 export function claudeDir(env) {
     return given(env.CLAUDE_CONFIG_DIR) ?? join(homedir(), '.claude');
@@ -106,7 +112,8 @@ export function resolveDataDir(env, override) {
 }
 export function resolveConfig(env, settingsEnv = {}, dataDir) {
     const dir = resolveDataDir(env, dataDir);
-    const { settings, broken } = readOptions(env);
+    const { settings, problems } = readOptions(env);
+    const configDir = given(env.CLAUDE_CONFIG_DIR);
     const { url, keyVar } = PROVIDERS[settings.provider];
     const apiKey = given(env[keyVar]) ?? given(settingsEnv[keyVar]);
     return {
@@ -121,6 +128,7 @@ export function resolveConfig(env, settingsEnv = {}, dataDir) {
         showInconclusive: settings.show_inconclusive,
         reverseCheck: settings.reverse_plan_check,
         dataDir: dir,
-        ...(broken ? { settingsBroken: true } : {}),
+        settingsFile: configDir ? join(configDir, 'settings.json') : '~/.claude/settings.json',
+        ...(problems.length ? { optionProblems: problems } : {}),
     };
 }

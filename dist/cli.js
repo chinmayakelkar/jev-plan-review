@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { claudeDir, DEFAULT_SETTINGS, given, OPTION_PREFIX, readSettingsEnv, resolveConfig, } from './config.js';
+import { claudeDir, DEFAULT_SETTINGS, given, OPTION_PREFIX, optionNote, readSettingsEnv, resolveConfig, } from './config.js';
 import { renderMarkdown } from './report.js';
 import { runReview } from './run.js';
 import { loadState, saveReport } from './session.js';
@@ -52,7 +52,7 @@ export async function runCli(argv, env, asker, readStdin = () => readFileSync(0,
     for (const pair of args.options) {
         const split = pair.indexOf('=');
         const name = pair.slice(0, split < 0 ? undefined : split).trim();
-        if (!(name in DEFAULT_SETTINGS)) {
+        if (!Object.hasOwn(DEFAULT_SETTINGS, name)) {
             return {
                 code: 1,
                 output: `unknown option ${name}; the options are ${Object.keys(DEFAULT_SETTINGS).join(', ')}`,
@@ -98,7 +98,8 @@ export async function runCli(argv, env, asker, readStdin = () => readFileSync(0,
             output: 'No plan found: no path was given, no plan was passed in, and no plan-mode plan was made in this session.',
         };
     }
-    const checked = `Plan checked: ${label}`;
+    const problems = config.optionProblems ?? [];
+    const checked = `Plan checked: ${label}${problems.length ? `\njev-plan-review: ${optionNote(problems)}.` : ''}`;
     const outcome = await runReview({
         plan,
         transcriptPath,

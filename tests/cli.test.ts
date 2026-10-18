@@ -163,6 +163,35 @@ describe('runCli', () => {
     );
   });
 
+  it('refuses a name that is not one of its own options', async () => {
+    const { env, dataDir, plan } = setup();
+    const args = ['--session', 'sess', '--data-dir', dataDir, '--plan', plan, '--option', 'constructor=x'];
+    const { code, output } = await runCli(args, env, fakeJev());
+    expect(code).toBe(1);
+    expect(output.startsWith('unknown option constructor;')).toBe(true);
+  });
+
+  it('names an option it cannot use', async () => {
+    const { env, dataDir, plan } = setup();
+    const args = ['--session', 'sess', '--data-dir', dataDir, '--plan', plan, '--option', 'max_revisions=2.5'];
+    const { output } = await runCli(args, env, fakeJev());
+    expect(output.split('\n')[1]).toBe(
+      'jev-plan-review: max_revisions must be a whole number, 1 or more; used 2; fix it in /config.',
+    );
+  });
+
+  it('treats an option the skill left unfilled as unset', async () => {
+    const { env, dataDir, plan } = setup();
+    const args = ['--session', 'sess', '--data-dir', dataDir, '--plan', plan];
+    const { code, output } = await runCli(
+      [...args, '--option', 'max_revisions=${user_config.max_revisions}'],
+      env,
+      fakeJev(),
+    );
+    expect(code).toBe(0);
+    expect(output).not.toContain('fix it in /config');
+  });
+
   it('explains what is wrong when it cannot run', async () => {
     const { env, dataDir, plan } = setup();
     expect((await runCli([], env)).output).toContain('usage:');

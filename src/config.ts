@@ -48,7 +48,8 @@ export interface Config {
   showInconclusive: boolean;
   reverseCheck: boolean;
   dataDir: string;
-  settingsBroken?: boolean;
+  settingsFile?: string;
+  optionProblems?: string[];
 }
 
 export type Env = Record<string, unknown>;
@@ -105,19 +106,27 @@ export function withSetting(settings: Settings, key: string, raw: unknown): Sett
 
 export const OPTION_PREFIX = 'CLAUDE_PLUGIN_OPTION_';
 
-export function readOptions(env: Env): { settings: Settings; broken: boolean } {
+function shown(value: unknown): string {
+  return typeof value === 'boolean' ? (value ? 'on' : 'off') : String(value);
+}
+
+export function readOptions(env: Env): { settings: Settings; problems: string[] } {
   let settings = DEFAULT_SETTINGS;
-  let broken = false;
-  for (const key of Object.keys(DEFAULT_SETTINGS)) {
+  const problems: string[] = [];
+  for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
     const value = given(env[OPTION_PREFIX + key.toUpperCase()]);
     if (value === undefined) continue;
     try {
       settings = withSetting(settings, key, value);
-    } catch {
-      broken = true;
+    } catch (error) {
+      problems.push(`${error instanceof Error ? error.message : String(error)}; used ${shown(DEFAULT_SETTINGS[key])}`);
     }
   }
-  return { settings, broken };
+  return { settings, problems };
+}
+
+export function optionNote(problems: readonly string[]): string {
+  return `${problems.join('; ')}; fix it in /config`;
 }
 
 export function claudeDir(env: Env): string {
@@ -141,7 +150,8 @@ export function resolveDataDir(env: Env, override?: string): string {
 
 export function resolveConfig(env: Env, settingsEnv: Env = {}, dataDir?: string): Config {
   const dir = resolveDataDir(env, dataDir);
-  const { settings, broken } = readOptions(env);
+  const { settings, problems } = readOptions(env);
+  const configDir = given(env.CLAUDE_CONFIG_DIR);
   const { url, keyVar } = PROVIDERS[settings.provider];
   const apiKey = given(env[keyVar]) ?? given(settingsEnv[keyVar]);
   return {
@@ -156,6 +166,7 @@ export function resolveConfig(env: Env, settingsEnv: Env = {}, dataDir?: string)
     showInconclusive: settings.show_inconclusive,
     reverseCheck: settings.reverse_plan_check,
     dataDir: dir,
-    ...(broken ? { settingsBroken: true } : {}),
+    settingsFile: configDir ? join(configDir, 'settings.json') : '~/.claude/settings.json',
+    ...(problems.length ? { optionProblems: problems } : {}),
   };
 }

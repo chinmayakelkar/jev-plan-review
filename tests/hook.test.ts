@@ -246,14 +246,17 @@ describe('handleHook when things go wrong', () => {
 
   it('reviews but sends nothing back when a plugin option could not be used', async () => {
     const path = writeTranscript([human('Add a CSV export command too.')]);
-    const broken = config({ settingsBroken: true });
+    const problem = 'max_revisions must be a whole number, 1 or more; used 2';
+    const broken = config({ optionProblems: [problem] });
     const reviewed = await handleHook(preToolUse(path), broken, missing());
     expect(reviewed?.hookSpecificOutput?.permissionDecision).toBeUndefined();
-    expect(toClaude(reviewed)).toContain('a plugin option could not be used');
+    expect(reviewed?.systemMessage).toBe(`jev-plan-review: ${problem}; fix it in /config.`);
+    expect(toClaude(reviewed)).toContain(`${problem}; fix it in /config. No plan was sent back.`);
     expect(toClaude(reviewed)).toContain('[missing]');
     const skipped = await handleHook(preToolUse(path), { ...broken, apiKey: undefined });
-    expect(skipped?.systemMessage).toContain('a plugin option could not be used');
-    expect(toClaude(skipped)).toContain('a plugin option could not be used');
+    expect(skipped?.systemMessage).toContain('no TypeSafe API key is set');
+    expect(skipped?.systemMessage).toContain(`${problem}; fix it in /config`);
+    expect(toClaude(skipped)).toContain(`${problem}; fix it in /config`);
   });
 
   it('ignores subagents and unknown events', async () => {

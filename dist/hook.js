@@ -1,10 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { readSettingsEnv, resolveConfig } from './config.js';
+import { optionNote, readSettingsEnv, resolveConfig } from './config.js';
 import { claudeContext, renderMarkdown, revisionRequest } from './report.js';
 import { runReview } from './run.js';
 import { loadState, saveReport, saveState } from './session.js';
 import { readTranscript, REPORT_MARKER } from './transcript.js';
-const BROKEN_SETTINGS = 'a plugin option could not be used, so its default was used and no plan was sent back; fix it in /config.';
 function skipped(reason) {
     return {
         systemMessage: `jev-plan-review: skipped — ${reason}`,
@@ -59,9 +58,10 @@ export async function handleHook(input, config, asker) {
         config,
         ...(asker ? { asker } : {}),
     });
+    const problems = config.optionProblems ?? [];
     if (outcome.kind === 'skipped') {
         saveState(config.dataDir, sessionId, remembered);
-        return skipped(`${outcome.reason}${config.settingsBroken ? `. ${BROKEN_SETTINGS}` : ''}`);
+        return skipped(`${outcome.reason}${problems.length ? `. ${optionNote(problems)}` : ''}`);
     }
     const newPlanFile = planFilePath !== undefined &&
         state.lastPlanFilePath !== undefined &&
@@ -69,7 +69,7 @@ export async function handleHook(input, config, asker) {
     const revisions = newPlanFile ? 0 : state.revisions;
     const max = config.maxRevisions;
     const open = outcome.result.verdicts.filter((verdict) => verdict.actionable);
-    if (!config.settingsBroken && open.length > 0 && revisions < max) {
+    if (problems.length === 0 && open.length > 0 && revisions < max) {
         const revision = revisions + 1;
         saveState(config.dataDir, sessionId, { ...remembered, revisions: revision });
         return {
@@ -82,8 +82,8 @@ export async function handleHook(input, config, asker) {
         };
     }
     saveState(config.dataDir, sessionId, { ...remembered, revisions });
-    const notes = config.settingsBroken ? [BROKEN_SETTINGS] : [];
-    if (!config.settingsBroken && open.length > 0) {
+    const notes = problems.length ? [`${optionNote(problems)}. No plan was sent back.`] : [];
+    if (problems.length === 0 && open.length > 0) {
         notes.push(`Still open after ${max} revisions; the plan is shown as it stands.`);
     }
     if (outcome.overLimit > 0) {
@@ -92,6 +92,7 @@ export async function handleHook(input, config, asker) {
     const { showInconclusive } = config;
     const reportPath = saveReport(config.dataDir, sessionId, renderMarkdown(outcome.result, { showInconclusive }));
     return {
+        ...(problems.length ? { systemMessage: `jev-plan-review: ${optionNote(problems)}.` } : {}),
         hookSpecificOutput: {
             hookEventName: 'PreToolUse',
             additionalContext: claudeContext(outcome.result, reportPath, {
