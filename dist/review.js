@@ -26,7 +26,7 @@ const PLAN_CRITERIA = {
 };
 const PLAN_CHOICES = Object.keys(PLAN_CRITERIA);
 const PLAN_CLASSIFY_CONTEXT = 'An implementation plan has been split into numbered items. `plan_items` lists some of them. Each question asks what kind of item one id is.';
-const REVERSE_CONTEXT = 'An implementation plan is being checked for things the user never said. `turns` lists statements the user made, or one part of them when `turns_part` is present; `said_before_by_assistant` only explains what the user was replying to. `plan_items` lists items from the plan. Each question asks whether the user asked for or agreed to one plan item.';
+const REVERSE_CONTEXT = 'An implementation plan is being checked for things the user never said. `turns` lists statements the user made, or one part of them when `turns_part` is present; `said_before_by_assistant` only explains what the user was replying to. A turn with `from_document` holds rules from a file the user gave as something the plan must follow; those count as the user\'s own. `plan_items` lists items from the plan. Each question asks whether the user asked for or agreed to one plan item.';
 const FILES_CONTEXT = 'A user and a coding assistant are preparing an implementation plan. `files` lists files the user mentioned. `mentioned_in` is what the user wrote when mentioning the file and `starts_with` is the start of the file. Each question asks whether the user gave one file as something the plan must follow.';
 const FILE_MENTION_CHARS = 600;
 const FILE_START_CHARS = 2000;
@@ -241,7 +241,7 @@ function askedQuestion(item) {
     return {
         [`asked_${item.id}`]: {
             type: 'noul',
-            instructions: `The user asked for, agreed to, or stated plan item ${item.id}. A choice the plan made on its own, however sensible, does not count`,
+            instructions: `The user asked for, agreed to, or stated plan item ${item.id}, directly or through a file they gave. An item that restates or carries out something the user said counts. A choice the plan made on its own, however sensible, does not count`,
         },
     };
 }
