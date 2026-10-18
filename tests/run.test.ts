@@ -198,3 +198,32 @@ describe('runReview without a key', () => {
     expect(plain.kind === 'skipped' && plain.reason).toContain('"env" section of ~/.claude/settings.json');
   });
 });
+
+describe('runReview and files that share a label', () => {
+  it('keeps each file to its own decision', async () => {
+    const outcome = await runReview({
+      plan: 'Export as CSV.',
+      transcriptPath: writeTranscript([
+        human('Follow @a/spec.md and look at @b/spec.md'),
+        fileAttachment('D:/p/a/spec.md', 'The export must be CSV.', 'spec.md'),
+        fileAttachment('D:/p/b/spec.md', 'This project prints reports.', 'spec.md'),
+      ]),
+      windowStart: 0,
+      config: config(),
+      asker: fakeJev({ file: (id) => (id === 'f1' ? 0.95 : 0.1) }),
+    });
+    if (outcome.kind !== 'reviewed') throw new Error(outcome.reason);
+    expect(outcome.result.verdicts.map((verdict) => verdict.text)).not.toContain('This project prints reports.');
+  });
+
+  it('skips the review when Jev leaves out a file answer', async () => {
+    const outcome = await runReview({
+      plan: 'Export as CSV.',
+      transcriptPath: writeTranscript([human('Follow @spec.md'), fileAttachment('spec.md', 'The export must be CSV.')]),
+      windowStart: 0,
+      config: config(),
+      asker: { ask: async () => ({ answers: {} }) },
+    });
+    expect(outcome.kind === 'skipped' && outcome.reason).toContain('Invalid Jev answer for file_f1');
+  });
+});

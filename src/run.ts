@@ -37,8 +37,8 @@ export async function runReview(input: RunInput): Promise<RunOutcome> {
     const sources = collectSources(readTranscript(input.transcriptPath).slice(input.windowStart));
     const documents = sources.filter((source) => source.kind === 'document');
     const picked = await pickFiles(documents, asker, config.minConfidence);
-    const used = new Set(picked.files.filter((file) => file.status === 'used').map((file) => file.label));
-    const kept = sources.filter((source) => source.kind !== 'document' || used.has(source.label ?? ''));
+    const used = new Set(documents.filter((_, index) => picked.files[index].status === 'used'));
+    const kept = sources.filter((source) => source.kind !== 'document' || used.has(source));
     const { statements, skipped } = toStatements(kept, config.maxStatements);
     if (statements.length === 0) {
       return {
