@@ -17,7 +17,7 @@ import {
 import type { JevAsker } from './jev.js';
 import { renderMarkdown } from './report.js';
 import { runReview } from './run.js';
-import { loadState } from './session.js';
+import { loadState, saveReport } from './session.js';
 import { latestPlanModePlan, readTranscript } from './transcript.js';
 
 const USAGE = [
@@ -171,7 +171,9 @@ export async function runCli(
     outcome.overLimit > 0
       ? `\n\n${outcome.overLimit} statement(s) were over the limit and not checked.`
       : '';
-  return { code: 0, output: `${checked}\n${renderMarkdown(outcome.result, { showInconclusive: config.showInconclusive })}${overLimit}` };
+  const markdown = `${checked}\n${renderMarkdown(outcome.result, { showInconclusive: config.showInconclusive })}${overLimit}`;
+  const reportPath = saveReport(config.dataDir, sessionId, markdown);
+  return { code: 0, output: `${markdown}\nFull report: ${reportPath}` };
 }
 
 export async function main(): Promise<void> {

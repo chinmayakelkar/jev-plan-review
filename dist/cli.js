@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { claudeDir, given, loadSettings, PROVIDERS, readSettingsEnv, resolveConfig, resolveDataDir, saveSettings, settingsPath, withSetting, } from './config.js';
 import { renderMarkdown } from './report.js';
 import { runReview } from './run.js';
-import { loadState } from './session.js';
+import { loadState, saveReport } from './session.js';
 import { latestPlanModePlan, readTranscript } from './transcript.js';
 const USAGE = [
     'usage: node cli.js --session <id> [--plan <file>] [--since-clear] [--data-dir <dir>]',
@@ -143,7 +143,9 @@ export async function runCli(argv, env, asker, readStdin = () => readFileSync(0,
     const overLimit = outcome.overLimit > 0
         ? `\n\n${outcome.overLimit} statement(s) were over the limit and not checked.`
         : '';
-    return { code: 0, output: `${checked}\n${renderMarkdown(outcome.result, { showInconclusive: config.showInconclusive })}${overLimit}` };
+    const markdown = `${checked}\n${renderMarkdown(outcome.result, { showInconclusive: config.showInconclusive })}${overLimit}`;
+    const reportPath = saveReport(config.dataDir, sessionId, markdown);
+    return { code: 0, output: `${markdown}\nFull report: ${reportPath}` };
 }
 export async function main() {
     const { code, output } = await runCli(process.argv.slice(2), process.env);

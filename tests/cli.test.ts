@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runCli } from '../src/cli.js';
@@ -28,6 +28,14 @@ describe('runCli', () => {
     expect(code).toBe(0);
     expect(output).toContain('jev-plan-review: 2 of 2 items reflected in the plan');
     expect(output).toContain('| 1 | requirement | Use SQLite for the storage layer. | YES | 95% |  |');
+  });
+
+  it('saves the report and says where', async () => {
+    const { env, dataDir, plan } = setup();
+    const { output } = await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', plan], env, fakeJev());
+    const path = join(dataDir, 'reports', 'sess.md');
+    expect(readFileSync(path, 'utf8')).toContain('2 of 2 items reflected');
+    expect(output.trimEnd().split('\n').at(-1)).toBe(`Full report: ${path}`);
   });
 
   it('accepts the plan as a bare path and names it', async () => {
