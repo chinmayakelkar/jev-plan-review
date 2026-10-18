@@ -14,6 +14,7 @@ function config(overrides: Partial<Config> = {}): Config {
     maxRevisions: 2,
     maxStatements: 150,
     showInconclusive: true,
+    reverseCheck: true,
     dataDir: tempDir(),
     ...overrides,
   };

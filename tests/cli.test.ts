@@ -131,6 +131,7 @@ describe('runCli settings', () => {
     expect(output).toMatch(/max_revisions\s+2/);
     expect(output).toMatch(/max_statements\s+150/);
     expect(output).toMatch(/show_inconclusive\s+on/);
+    expect(output).toMatch(/reverse_plan_check\s+on/);
     expect(output).toMatch(/model\s+jev-latest/);
     expect(output).toContain('TYPESAFE_API_KEY is not set');
     expect(output).toContain('Do not paste the key into the chat');
@@ -198,6 +199,15 @@ describe('runCli settings', () => {
     const { output } = await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', plan], env, fakeJev({ asked: () => 0.05 }));
     expect(output).toContain('## In the plan, not from you');
     expect(output).toContain('Store data in SQLite.');
+  });
+
+  it('leaves out the reverse section when reverse_plan_check is off', async () => {
+    const { env, dataDir, plan } = setup();
+    saveSettings(dataDir, { ...DEFAULT_SETTINGS, reverse_plan_check: false });
+    const seen: Seen[] = [];
+    const { output } = await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', plan], env, fakeJev({ asked: () => 0.05 }, seen));
+    expect(output).not.toContain('In the plan, not from you');
+    expect(seen.flatMap((call) => call.questions).some((name) => name.startsWith('asked_'))).toBe(false);
   });
 
   it('reports a plan with only routine steps as fully traced', async () => {

@@ -33,6 +33,7 @@ const SETTING_HELP: Record<keyof Settings, string> = {
   max_revisions: '1 or more: how many times one plan may be sent back',
   max_statements: '1 or more: how many statements one review may check',
   show_inconclusive: 'on or off: show items Jev was unsure of',
+  reverse_plan_check: 'on or off: in the command, also list what the plan decided that the user never said',
   model: 'the Jev model name',
 };
 
@@ -154,7 +155,7 @@ export async function runCli(
     transcriptPath,
     windowStart: args.sinceClear ? state.clearLine : Math.max(state.clearLine, state.approvedLine),
     config,
-    reverse: true,
+    reverse: config.reverseCheck,
     ...(asker ? { asker } : {}),
   });
 

@@ -21,6 +21,7 @@ export interface Settings {
   max_revisions: number;
   max_statements: number;
   show_inconclusive: boolean;
+  reverse_plan_check: boolean;
   model: string;
 }
 
@@ -31,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   max_revisions: 2,
   max_statements: 150,
   show_inconclusive: true,
+  reverse_plan_check: true,
   model: DEFAULT_MODEL,
 };
 
@@ -44,6 +46,7 @@ export interface Config {
   maxRevisions: number;
   maxStatements: number;
   showInconclusive: boolean;
+  reverseCheck: boolean;
   dataDir: string;
   settingsBroken?: boolean;
 }
@@ -80,6 +83,7 @@ export function withSetting(settings: Settings, key: string, raw: unknown): Sett
     }
     case 'auto_review':
     case 'show_inconclusive':
+    case 'reverse_plan_check':
       return { ...settings, [key]: toggle(key, value) };
     case 'max_revisions':
     case 'max_statements': {
@@ -175,6 +179,7 @@ export function resolveConfig(env: Env, settingsEnv: Env = {}, dataDir?: string)
     maxRevisions: settings.max_revisions,
     maxStatements: settings.max_statements,
     showInconclusive: settings.show_inconclusive,
+    reverseCheck: settings.reverse_plan_check,
     dataDir: dir,
     ...(broken ? { settingsBroken: true } : {}),
   };

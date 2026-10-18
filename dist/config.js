@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS = {
     max_revisions: 2,
     max_statements: 150,
     show_inconclusive: true,
+    reverse_plan_check: true,
     model: DEFAULT_MODEL,
 };
 export function given(value) {
@@ -50,6 +51,7 @@ export function withSetting(settings, key, raw) {
         }
         case 'auto_review':
         case 'show_inconclusive':
+        case 'reverse_plan_check':
             return { ...settings, [key]: toggle(key, value) };
         case 'max_revisions':
         case 'max_statements': {
@@ -142,6 +144,7 @@ export function resolveConfig(env, settingsEnv = {}, dataDir) {
         maxRevisions: settings.max_revisions,
         maxStatements: settings.max_statements,
         showInconclusive: settings.show_inconclusive,
+        reverseCheck: settings.reverse_plan_check,
         dataDir: dir,
         ...(broken ? { settingsBroken: true } : {}),
     };

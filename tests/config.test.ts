@@ -31,6 +31,7 @@ describe('settings', () => {
       max_revisions: 2,
       max_statements: 150,
       show_inconclusive: true,
+      reverse_plan_check: true,
       model: 'jev-latest',
     });
   });
@@ -71,6 +72,10 @@ describe('settings', () => {
       'max_statements must be a whole number, 1 or more',
     );
     expect(withSetting(DEFAULT_SETTINGS, 'show_inconclusive', 'off').show_inconclusive).toBe(false);
+    expect(withSetting(DEFAULT_SETTINGS, 'reverse_plan_check', 'off').reverse_plan_check).toBe(false);
+    expect(() => withSetting(DEFAULT_SETTINGS, 'reverse_plan_check', 'maybe')).toThrow(
+      'reverse_plan_check must be on or off',
+    );
     expect(() => withSetting(DEFAULT_SETTINGS, 'model', ' ')).toThrow('model must not be empty');
     expect(() => withSetting(DEFAULT_SETTINGS, 'colour', 'blue')).toThrow('unknown setting colour');
   });
@@ -98,6 +103,7 @@ describe('resolveConfig', () => {
       maxRevisions: 2,
       maxStatements: 150,
       showInconclusive: true,
+      reverseCheck: true,
       dataDir: dir,
     });
     expect(resolveConfig({ CLAUDE_PLUGIN_DATA: dir }).dataDir).toBe(dir);
