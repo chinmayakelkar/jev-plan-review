@@ -4,6 +4,7 @@ export const REPORT_MARKER = '[jev-plan-review report]';
 const REMINDER = /<system-reminder>[\s\S]*?<\/system-reminder>/g;
 const COMMAND = /<command-(?:name|message)>/;
 const OWN_COMMAND = /<command-name>\/jev-plan-review:/;
+const COMMAND_NAME = /<command-name>([^<]*)<\/command-name>/;
 const COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/;
 const NOISE = /^(?:<local-command-|<bash-(?:input|stdout|stderr)>|<task-notification>|\[Request interrupted)/;
 const USER_SAID = /the user said:\s*/i;
@@ -107,17 +108,31 @@ export function collectSources(records) {
     const documents = [];
     const toolNames = new Map();
     let lastAssistant = '';
+    let command;
+    let ownCommand = false;
     const addPrompt = (raw) => {
         let text = raw.replace(REMINDER, '').trim();
-        if (OWN_COMMAND.test(text))
-            return;
-        if (COMMAND.test(text))
+        if (COMMAND.test(text)) {
+            command = COMMAND_NAME.exec(text)?.[1].trim() || undefined;
+            ownCommand = OWN_COMMAND.test(text);
+            if (ownCommand)
+                return;
             text = (COMMAND_ARGS.exec(text)?.[1] ?? '').trim();
+        }
+        else if (text && !NOISE.test(text)) {
+            command = undefined;
+            ownCommand = false;
+        }
         if (!text || NOISE.test(text) || text.includes(REPORT_MARKER))
             return;
         if (sources.some((source) => source.kind === 'prompt' && source.text === text))
             return;
-        sources.push({ kind: 'prompt', text, ...(lastAssistant ? { context: lastAssistant } : {}) });
+        sources.push({
+            kind: 'prompt',
+            text,
+            ...(lastAssistant ? { context: lastAssistant } : {}),
+            ...(command ? { command } : {}),
+        });
     };
     for (const record of records) {
         if (record.isSidechain)
@@ -144,8 +159,13 @@ export function collectSources(records) {
             }
             for (const block of results) {
                 const tool = toolNames.get(block.tool_use_id ?? '');
-                if (tool === 'AskUserQuestion')
-                    sources.push(...answerSources(record.toolUseResult));
+                if (tool === 'AskUserQuestion') {
+                    if (!ownCommand) {
+                        for (const answer of answerSources(record.toolUseResult)) {
+                            sources.push(command ? { ...answer, command } : answer);
+                        }
+                    }
+                }
                 else if (tool === 'ExitPlanMode' && block.is_error) {
                     const text = textOf(block.content).replace(REMINDER, '');
                     const said = USER_SAID.exec(text);

@@ -84,6 +84,11 @@ describe('splitText', () => {
 });
 
 describe('toStatements', () => {
+  it('carries the command onto each statement', () => {
+    const { statements } = toStatements([{ kind: 'prompt', text: 'Use Go. Keep it small.', command: '/x' }]);
+    expect(statements.map((statement) => statement.command)).toEqual(['/x', '/x']);
+  });
+
   it('numbers statements in order and carries context and label', () => {
     const { statements, skipped } = toStatements([
       { kind: 'prompt', text: 'Use Postgres for storage. Keep the tool small.', context: 'Which database?' },

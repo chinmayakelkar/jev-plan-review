@@ -111,6 +111,26 @@ describe('review', () => {
     expect(result.ignored).toBe(2);
   });
 
+  it('sets aside statements Jev calls about_tools', async () => {
+    const statements = statementsOf('- Use Postgres for the storage layer\n- Turn the auto review off please');
+    const result = await review(
+      'Store data in Postgres.',
+      statements,
+      fakeJev({ kind: (id) => (id === 's1' ? 'about_tools' : 'requirement') }),
+    );
+    expect(result.verdicts.map((verdict) => verdict.id)).toEqual(['s2']);
+    expect(result.unclear).toEqual([]);
+    expect(result.ignored).toBe(1);
+  });
+
+  it('shows the command beside the turn', async () => {
+    const { statements } = toStatements([{ kind: 'prompt', text: 'Use Postgres for storage.', command: '/x' }]);
+    const seen: Seen[] = [];
+    await review('Store data in Postgres.', statements, fakeJev({}, seen));
+    const { turns } = seen[0].state as { turns: { during_command?: string }[] };
+    expect(turns[0].during_command).toBe('/x');
+  });
+
   it('asks no yes/no question about a statement it could not classify', async () => {
     const statements = statementsOf(
       '- Use Postgres for the storage layer\n- Postgres maybe for the other thing\n- Thanks for all the help today',

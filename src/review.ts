@@ -15,11 +15,13 @@ const CRITERIA: Record<string, string> = {
   superseded:
     'A later statement by the user reverses or replaces this one. A statement that itself changes an earlier one is not superseded',
   not_actionable: 'A question, thanks, process remark or background with nothing for a plan to reflect',
+  about_tools:
+    'An instruction or answer about settings, tools, commands or the assistant itself, not about the work being planned',
 };
 const CHOICES = Object.keys(CRITERIA);
 
 const CLASSIFY_CONTEXT =
-  'A user and a coding assistant are preparing an implementation plan. `turns` lists, oldest first, what the user said, split into numbered statements. `said_before_by_assistant` is there only to explain what the user was replying to; it is never a statement to classify. Each question asks what kind of statement one id is.';
+  'A user and a coding assistant are preparing an implementation plan. `turns` lists, oldest first, what the user said, split into numbered statements. `said_before_by_assistant` is there only to explain what the user was replying to; it is never a statement to classify. `during_command`, when present, names the slash command the user was running when they said it. Each question asks what kind of statement one id is.';
 const VERIFY_CONTEXT =
   'An implementation plan is being checked against what the user said while it was prepared. `plan` is the plan, or one part of it when `plan_part` is present. `turns` lists statements the user made; `said_before_by_assistant` only explains what the user was replying to. Each question asks whether the plan text shown here reflects, or conflicts with, one statement. Judge only from the plan text shown.';
 
@@ -117,6 +119,7 @@ export interface ReviewResult {
 interface Turn {
   source: SourceKind;
   said_before_by_assistant?: string;
+  during_command?: string;
   from_document?: string;
   statements: { id: string; text: string; kind?: Kind }[];
 }
@@ -132,6 +135,7 @@ function turnsFor(statements: readonly (Statement | Item)[], contextChars: numbe
         turn.said_before_by_assistant = abridge(statement.context, head, contextChars - head);
       }
       if (statement.label) turn.from_document = statement.label;
+      if (statement.command) turn.during_command = statement.command;
       turns.set(statement.turn, turn);
     }
     turn.statements.push({

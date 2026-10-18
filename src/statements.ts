@@ -10,6 +10,7 @@ export interface Statement {
   turn: number;
   context?: string;
   label?: string;
+  command?: string;
 }
 
 const FENCE = /^\s*```/;
@@ -98,6 +99,7 @@ export function toStatements(
         turn,
         ...(source.context ? { context: source.context } : {}),
         ...(source.label ? { label: source.label } : {}),
+        ...(source.command ? { command: source.command } : {}),
       });
     }
   });

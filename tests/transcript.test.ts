@@ -58,7 +58,7 @@ describe('collectSources', () => {
       ),
       human('<command-name>/model</command-name>\n<command-args></command-args>'),
     ]);
-    expect(sources).toEqual([{ kind: 'prompt', text: 'The export must be CSV.' }]);
+    expect(sources).toEqual([{ kind: 'prompt', text: 'The export must be CSV.', command: '/brainstorm' }]);
   });
 
   it('drops the arguments of this plugin’s own commands', () => {
@@ -71,6 +71,44 @@ describe('collectSources', () => {
       ),
     ]);
     expect(sources).toEqual([]);
+  });
+
+  it('skips answers given during the plugin’s own commands', () => {
+    const sources = collectSources([
+      human(
+        '<command-message>jev-plan-review:settings</command-message>\n<command-name>/jev-plan-review:settings</command-name>',
+      ),
+      toolUse('q1', 'AskUserQuestion'),
+      toolResult('q1', 'answered', { toolUseResult: { answers: { 'Auto review?': 'Off' } } }),
+      human('Plan a word counter.'),
+    ]);
+    expect(sources).toEqual([{ kind: 'prompt', text: 'Plan a word counter.' }]);
+  });
+
+  describe('during another command', () => {
+    const brainstorm = [
+      human(
+        '<command-message>superpowers:brainstorm</command-message>\n<command-name>/superpowers:brainstorm</command-name>\n<command-args>a word counter</command-args>',
+      ),
+      toolUse('q1', 'AskUserQuestion'),
+      toolResult('q1', 'answered', { toolUseResult: { answers: { 'Auto review?': 'Off' } } }),
+    ];
+
+    it('keeps answers and names the command', () => {
+      expect(collectSources(brainstorm)).toEqual([
+        { kind: 'prompt', text: 'a word counter', command: '/superpowers:brainstorm' },
+        {
+          kind: 'answer',
+          text: 'Asked: "Auto review?" — the user answered: "Off"',
+          command: '/superpowers:brainstorm',
+        },
+      ]);
+    });
+
+    it('ends the command at the next normal prompt', () => {
+      const sources = collectSources([...brainstorm, human('Use Python.')]);
+      expect(sources[2]).toEqual({ kind: 'prompt', text: 'Use Python.' });
+    });
   });
 
   it('turns AskUserQuestion answers into self-contained statements', () => {

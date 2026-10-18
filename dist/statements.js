@@ -83,6 +83,7 @@ export function toStatements(sources, max = 150) {
                 turn,
                 ...(source.context ? { context: source.context } : {}),
                 ...(source.label ? { label: source.label } : {}),
+                ...(source.command ? { command: source.command } : {}),
             });
         }
     });
