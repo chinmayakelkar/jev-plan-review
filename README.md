@@ -18,8 +18,10 @@ It runs in two ways:
   checks it first and sends it back to Claude to fix anything Jev is sure is
   missing or contradicted. Claude gets the table; the approval screen does
   not show it.
-- **A command.** `/jev-plan-review:review <file>` checks any plan file and
-  shows you the table. It never changes the plan.
+- **A command.** `/jev-plan-review:review` checks a plan file, the latest
+  plan-mode plan, or a plan Claude made in the conversation. It shows you the
+  table, and also lists what the plan decided that you never said. It never
+  changes the plan.
 
 ```
 jev-plan-review: 3 of 5 items reflected in the plan, 1 missing, 1 contradicted (1 unsure)
@@ -57,14 +59,19 @@ your threshold is marked `unsure`.
    at 50% or more means *yes*. Otherwise *no*, with confidence of one minus
    the reflect score. An answer below your confidence threshold is marked
    *unsure*.
-6. **Revise (hook only).** Items Jev is sure are missing or contradicted are
+6. **Reverse check (command only).** The plan is split into items and Jev
+   sorts them like your statements; routine steps and non-actionable items
+   are dropped. For each remaining item Jev is asked whether you asked for or
+   agreed to it. Items it leans towards "not from you" are listed under
+   "In the plan, not from you".
+7. **Revise (hook only).** Items Jev is sure are missing or contradicted are
    sent back to Claude to fix, at most twice unless you change
    `max_revisions`. Unsure items are never sent back. The count resets when
    you approve a plan, run `/clear`, or Claude starts a new plan file. After
    the last revision the plan is let through with the open items marked.
-7. **Report.** The hook gives Claude the table when it lets a plan through,
+8. **Report.** The hook gives Claude the table when it lets a plan through,
    and the plan waits for you as usual. To see the table, ask Claude what
-   the review found. The command shows you the table directly. Either way,
+   the review found. The command shows you the tables directly. Either way,
    the full report is saved to `reports/` in the plugin's data folder.
 
 Requests are paced under TypeSafe's rate limits and retried twice when the
@@ -118,7 +125,8 @@ a plan file yourself:
 /jev-plan-review:review
 ```
 
-With no path, it checks the most recent plan-mode plan. By default it uses
+With no path, Claude passes in the plan it made in this conversation, or the
+tool uses the latest plan-mode plan. If there is no plan, it says so. By default it uses
 what you said since the last approved plan; `--since-clear` goes back to the
 last `/clear`, which is what you want when checking a plan you already
 approved.
@@ -143,6 +151,7 @@ You can also name the change directly:
 | `max_revisions` | `2` | How many times one plan may be sent back. Any whole number from 1 up. |
 | `max_statements` | `150` | How many statements one review may check. Any whole number from 1 up. More statements mean more Jev questions and a longer wait. |
 | `show_inconclusive` | `on` | Show the rows Jev was unsure of: `unsure` answers and `not checked` statements. When off they are left out of the table and the saved report, and one line says how many were hidden. |
+| `reverse_plan_check` | `on` | In the command, also list what the plan decided that you never said. When off, the command checks only that the plan reflects what you said. |
 | `model` | `jev-latest` | Jev model name. |
 
 A change takes effect at once. Settings cannot be changed while plan mode
@@ -166,6 +175,10 @@ never stored there.
   newest words ahead of your oldest.
 - A conversation too long to classify in one request is not reviewed.
 - Plans made by subagents are not reviewed.
+- A plan Claude passes in is Claude's own copy and can differ slightly from
+  what you saw. One longer than about 32,000 characters may not go through;
+  save it to a file and give the path.
+- The reverse check runs only in the command, not in the hook.
 - The hook has 180 seconds; a review that takes longer does not finish.
 - Images are not read.
 - The transcript file layout is not a published Claude Code contract; a
