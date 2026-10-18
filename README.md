@@ -41,17 +41,20 @@ your threshold is marked `unsure`.
    said: your prompts, your `AskUserQuestion` answers, the feedback you gave
    when you rejected a plan, text you pasted, and files you mentioned with
    `@`. It never uses `CLAUDE.md` or files Claude chose to read. Only what
-   came after the last `/clear` and the last approved plan counts.
+   came after the last `/clear` and the last approved plan counts. Answers you
+   give while one of this plugin's commands runs are skipped. A statement made
+   during any other slash command is sent with that command's name.
 2. **Split.** Each source is broken into short statements, one per bullet,
    numbered item or sentence. Claude's message just before your reply is
    kept beside it as context only, so a short answer still makes sense; it
    is never an item.
 3. **Classify.** Jev sorts each statement: requirement, constraint, decision,
-   assumption, preference, superseded, or not actionable. The chances it gives
-   the five real kinds are added up. At your confidence threshold or above,
-   the statement goes on. Below 50% it is set aside, as a question, thanks, or
-   something you later reversed. In between it is *unclear*: it is listed as
-   `not checked` and no further question is asked about it.
+   assumption, preference, superseded, about tools, or not actionable. The
+   chances it gives the five real kinds are added up. At your confidence
+   threshold or above, the statement goes on. Below 50% it is set aside, as a
+   question, thanks, something you later reversed, or something about settings
+   or tools. In between it is *unclear*: it is listed as `not checked` and no
+   further question is asked about it.
 4. **Verify.** For each item that went on, Jev answers two `noul` questions with
    the plan in front of it: the plan reflects this, and the plan conflicts
    with this. A plan too long for one request is checked in parts.
@@ -81,7 +84,8 @@ never blocks because of its own trouble.
 
 ## Install
 
-You need Node.js 18 or newer and an API key from TypeSafe or OpenRouter.
+You need Claude Code 2.1.271 or newer, Node.js 18 or newer, and an API key
+from TypeSafe or OpenRouter.
 
 Put the key in the `env` section of `~/.claude/settings.json`, where both the
 hook and the commands can read it. Use the name that matches your provider:
@@ -104,9 +108,9 @@ claude plugin marketplace add chinmayakelkar/jev-plan-review
 claude plugin install jev-plan-review@jev-plan-review
 ```
 
-Restart Claude Code or run `/reload-plugins`. The plugin starts with the
-defaults below. If you use OpenRouter, run `/jev-plan-review:settings` once
-and choose it.
+Restart Claude Code or run `/reload-plugins`. Claude Code asks for the
+settings when you enable the plugin; the defaults below are filled in. If you
+use OpenRouter, choose it there.
 
 To try it from a checkout without installing:
 
@@ -133,15 +137,7 @@ approved.
 
 ## Settings
 
-Run `/jev-plan-review:settings` at any time. It shows the current values,
-tells you whether your key was found, and offers each setting as a choice.
-You can also name the change directly:
-
-```
-/jev-plan-review:settings
-/jev-plan-review:settings min_confidence 90
-/jev-plan-review:settings provider openrouter
-```
+Change the settings in `/config`, where each one has its own row.
 
 | Setting | Default | Description |
 | --- | --- | --- |
@@ -154,10 +150,7 @@ You can also name the change directly:
 | `reverse_plan_check` | `on` | In the command, also list what the plan decided that you never said. When off, the command checks only that the plan reflects what you said. |
 | `model` | `jev-latest` | Jev model name. |
 
-A change takes effect at once. Settings cannot be changed while plan mode
-is on; leave plan mode with Shift+Tab first. The settings are kept in `settings.json` in the
-plugin's data folder; the settings command prints the path. The API key is
-never stored there.
+A change takes effect for the next review.
 
 ## Limitations
 
@@ -165,8 +158,7 @@ never stored there.
   still decide.
 - The approval screen does not show anything from the hook: not the table,
   and not a note that the review was skipped. Ask Claude what the review
-  found, and run `/jev-plan-review:settings` to check that your API key is
-  found.
+  found, and check that your API key is set.
 - Statements are split at bullets, numbered items and sentence ends; code
   blocks are skipped. An odd abbreviation or initial can split a sentence
   wrongly, and a statement that needs its neighbours may be judged poorly.
