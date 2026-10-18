@@ -39,11 +39,14 @@ your threshold is marked `unsure`.
 
 1. **Collect.** The plugin reads the session transcript and gathers what you
    said: your prompts, your `AskUserQuestion` answers, the feedback you gave
-   when you rejected a plan, text you pasted, and files you mentioned with
-   `@`. It never uses `CLAUDE.md` or files Claude chose to read. Only what
-   came after the last `/clear` and the last approved plan counts. Answers you
-   give while one of this plugin's commands runs are skipped. A statement made
-   during any other slash command is sent with that command's name.
+   when you rejected a plan, text you pasted, and prose files (`.md`, `.txt`
+   and similar) you mentioned with `@`, if Jev is sure you gave them as
+   something the plan must follow. It never uses `CLAUDE.md` or files Claude
+   chose to read. Only what came after the last `/clear` and the last
+   approved plan counts. Answers you give while one of this plugin's commands
+   runs are skipped. A statement made during any other slash command is sent
+   with that command's name. The report names which files were used, set
+   aside, or unsure.
 2. **Split.** Each source is broken into short statements, one per bullet,
    numbered item or sentence. Claude's message just before your reply is
    kept beside it as context only, so a short answer still makes sense; it
@@ -149,7 +152,8 @@ Change the settings in `/config`, where each one has its own row.
 | `reverse_plan_check` | `on` | In the command, also list what the plan decided that you never said. When off, the command checks only that the plan reflects what you said. |
 | `model` | `jev-latest` | Jev model name. |
 
-A change takes effect for the next review.
+A change takes effect for the next review. If a value can't be used, the
+plugin says so, names the setting, and uses its default.
 
 ## Limitations
 
@@ -162,8 +166,11 @@ A change takes effect for the next review.
   blocks are skipped. An odd abbreviation or initial can split a sentence
   wrongly, and a statement that needs its neighbours may be judged poorly.
 - At most `max_statements` statements are checked per review. When there
-  are more, your own words are kept ahead of attached documents, and your
+  are more, your own words are kept ahead of words from files, and your
   newest words ahead of your oldest.
+- Code and other non-prose files mentioned with `@` are never used. To have
+  a file checked, mention it in plain words, such as "follow the rules in
+  @spec.md".
 - A conversation too long to classify in one request is not reviewed.
 - Plans made by subagents are not reviewed.
 - A plan Claude passes in is Claude's own copy and can differ slightly from
