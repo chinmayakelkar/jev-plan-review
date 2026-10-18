@@ -18,6 +18,7 @@ import type { JevAsker } from './jev.js';
 import { renderMarkdown } from './report.js';
 import { runReview } from './run.js';
 import { loadState } from './session.js';
+import { latestPlanModePlan, readTranscript } from './transcript.js';
 
 const USAGE = [
   'usage: node cli.js --session <id> [--plan <file>] [--since-clear] [--data-dir <dir>]',
@@ -112,6 +113,7 @@ export async function runCli(
   argv: readonly string[],
   env: Env,
   asker?: JevAsker,
+  readStdin: () => string = () => readFileSync(0, 'utf8'),
 ): Promise<{ code: number; output: string }> {
   const args = parseArgs(argv);
   if (args.positional[0] === 'settings') return runSettings(args, env);
@@ -122,17 +124,33 @@ export async function runCli(
   const config = resolveConfig(env, readSettingsEnv(env), args.values.get('data-dir'));
 
   const state = loadState(config.dataDir, sessionId);
-  const planPath = given(args.values.get('plan')) ?? given(args.positional[0]) ?? state.lastPlanFilePath;
-  if (!planPath) {
-    return { code: 1, output: `No plan file given, and no plan-mode plan was seen in this session.\n${USAGE}` };
-  }
-  if (!existsSync(planPath)) return { code: 1, output: `Plan file not found: ${planPath}` };
-
   const transcriptPath = findTranscript(claudeDir(env), sessionId);
   if (!transcriptPath) return { code: 1, output: `No transcript found for session ${sessionId}` };
 
+  const planArg = given(args.values.get('plan')) ?? given(args.positional[0]);
+  let plan: string | undefined;
+  let label: string;
+  if (planArg === '-') {
+    plan = readStdin();
+    label = 'the plan Claude passed in';
+  } else if (planArg) {
+    if (!existsSync(planArg)) return { code: 1, output: `Plan file not found: ${planArg}` };
+    plan = readFileSync(planArg, 'utf8');
+    label = planArg;
+  } else {
+    plan = latestPlanModePlan(readTranscript(transcriptPath).slice(state.clearLine));
+    label = 'the latest plan-mode plan';
+  }
+  if (plan === undefined) {
+    return {
+      code: 1,
+      output: 'No plan found: no path was given, no plan was passed in, and no plan-mode plan was made in this session.',
+    };
+  }
+  const checked = `Plan checked: ${label}`;
+
   const outcome = await runReview({
-    plan: readFileSync(planPath, 'utf8'),
+    plan,
     transcriptPath,
     windowStart: args.sinceClear ? state.clearLine : Math.max(state.clearLine, state.approvedLine),
     config,
@@ -144,14 +162,14 @@ export async function runCli(
       !args.sinceClear && state.approvedLine > state.clearLine
         ? '\nA plan was approved earlier in this session. Add --since-clear to check against everything said since the last /clear.'
         : '';
-    return { code: 0, output: `jev-plan-review: skipped — ${outcome.reason}${hint}` };
+    return { code: 0, output: `${checked}\njev-plan-review: skipped — ${outcome.reason}${hint}` };
   }
 
   const overLimit =
     outcome.overLimit > 0
       ? `\n\n${outcome.overLimit} statement(s) were over the limit and not checked.`
       : '';
-  return { code: 0, output: `${renderMarkdown(outcome.result, { showInconclusive: config.showInconclusive })}${overLimit}` };
+  return { code: 0, output: `${checked}\n${renderMarkdown(outcome.result, { showInconclusive: config.showInconclusive })}${overLimit}` };
 }
 
 export async function main(): Promise<void> {

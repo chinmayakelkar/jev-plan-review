@@ -4,16 +4,16 @@ import { describe, expect, it } from 'vitest';
 import { runCli } from '../src/cli.js';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from '../src/config.js';
 import { saveState } from '../src/session.js';
-import { fakeJev, human, tempDir, writeTranscript } from './helpers.js';
+import type { TranscriptRecord } from '../src/transcript.js';
+import { fakeJev, human, tempDir, toolUse, writeTranscript, type Seen } from './helpers.js';
 
-function setup() {
+function setup(
+  records: readonly TranscriptRecord[] = [human('Use SQLite for the storage layer.'), human('Add a CSV export command too.')],
+) {
   const claude = tempDir();
   const project = join(claude, 'projects', 'D--proj');
   mkdirSync(project, { recursive: true });
-  writeTranscript(
-    [human('Use SQLite for the storage layer.'), human('Add a CSV export command too.')],
-    join(project, 'sess.jsonl'),
-  );
+  writeTranscript(records, join(project, 'sess.jsonl'));
   const dataDir = tempDir();
   const plan = join(tempDir(), 'plan.md');
   writeFileSync(plan, 'Store data in SQLite. Add CSV export.');
@@ -30,13 +30,37 @@ describe('runCli', () => {
     expect(output).toContain('| 1 | requirement | Use SQLite for the storage layer. | YES | 95% |  |');
   });
 
-  it('accepts the plan as a bare path and falls back to the last plan-mode plan', async () => {
+  it('accepts the plan as a bare path and names it', async () => {
     const { env, dataDir, plan } = setup();
-    expect((await runCli(['--session', 'sess', '--data-dir', dataDir, plan], env, fakeJev())).code).toBe(0);
+    const { code, output } = await runCli(['--session', 'sess', '--data-dir', dataDir, plan], env, fakeJev());
+    expect(code).toBe(0);
+    expect(output.split('\n')[0]).toBe(`Plan checked: ${plan}`);
+  });
 
-    saveState(dataDir, 'sess', { clearLine: 0, approvedLine: 0, revisions: 0, lastPlanFilePath: plan });
-    const fallback = await runCli(['--session', 'sess', '--data-dir', dataDir], env, fakeJev());
-    expect(fallback.output).toContain('2 of 2 items reflected');
+  it('falls back to the latest plan-mode plan in the transcript', async () => {
+    const { env, dataDir } = setup([
+      human('Use SQLite for the storage layer.'),
+      toolUse('p1', 'ExitPlanMode', { plan: 'Store data in SQLite.' }),
+    ]);
+    const { output } = await runCli(['--session', 'sess', '--data-dir', dataDir], env, fakeJev());
+    expect(output.split('\n')[0]).toBe('Plan checked: the latest plan-mode plan');
+    expect(output).toContain('1 of 1 items reflected');
+  });
+
+  it('reads a passed-in plan from stdin, unchanged', async () => {
+    const { env, dataDir } = setup();
+    const seen: Seen[] = [];
+    const text = 'Store data in SQLite under $HOME.\r\nRun `export` for CSV.';
+    const { output } = await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', '-'], env, fakeJev({}, seen), () => text);
+    expect(output.split('\n')[0]).toBe('Plan checked: the plan Claude passed in');
+    expect(seen.some((call) => (call.state as { plan?: string }).plan === text)).toBe(true);
+  });
+
+  it('stops when no plan is found', async () => {
+    const { env, dataDir } = setup();
+    const { code, output } = await runCli(['--session', 'sess', '--data-dir', dataDir], env, fakeJev());
+    expect(code).toBe(1);
+    expect(output).toContain('No plan found');
   });
 
   it('checks only what came after an approved plan unless told otherwise', async () => {
@@ -84,7 +108,7 @@ describe('runCli', () => {
     const { env, dataDir, plan } = setup();
     expect((await runCli([], env)).output).toContain('usage:');
     expect((await runCli(['--session', '${CLAUDE_SESSION_ID}'], env)).code).toBe(1);
-    expect((await runCli(['--session', 'sess', '--data-dir', dataDir], env)).output).toContain('No plan file given');
+    expect((await runCli(['--session', 'sess', '--data-dir', dataDir], env)).output).toContain('No plan found');
     expect((await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', 'absent.md'], env)).output).toContain(
       'Plan file not found: absent.md',
     );

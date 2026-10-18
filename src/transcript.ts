@@ -20,6 +20,7 @@ interface Block {
   tool_use_id?: string;
   content?: unknown;
   is_error?: boolean;
+  input?: { plan?: unknown; planFilePath?: unknown };
 }
 
 export interface TranscriptRecord {
@@ -116,6 +117,22 @@ function isMentioned(paths: readonly string[], mentioned: readonly string[]): bo
   return mentioned.some((mention) =>
     paths.some((path) => path === mention || path.endsWith(`/${mention}`)),
   );
+}
+
+export function latestPlanModePlan(records: readonly TranscriptRecord[]): string | undefined {
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    const record = records[index];
+    const content = record.message?.content;
+    if (record.isSidechain || record.type !== 'assistant' || !Array.isArray(content)) continue;
+    for (let at = content.length - 1; at >= 0; at -= 1) {
+      const block = content[at];
+      if (block.type !== 'tool_use' || block.name !== 'ExitPlanMode') continue;
+      const { plan, planFilePath } = block.input ?? {};
+      if (typeof planFilePath === 'string' && existsSync(planFilePath)) return readFileSync(planFilePath, 'utf8');
+      if (typeof plan === 'string' && plan.trim()) return plan;
+    }
+  }
+  return undefined;
 }
 
 export function collectSources(records: readonly TranscriptRecord[]): Source[] {

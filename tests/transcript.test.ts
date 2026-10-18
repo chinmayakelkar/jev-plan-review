@@ -1,7 +1,7 @@
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { collectSources, DENY_MARKER, readTranscript, REPORT_MARKER } from '../src/transcript.js';
+import { collectSources, DENY_MARKER, latestPlanModePlan, readTranscript, REPORT_MARKER } from '../src/transcript.js';
 import {
   assistantText,
   fileAttachment,
@@ -195,5 +195,28 @@ describe('a real captured session', () => {
     );
     expect(sources.some((source) => source.text.includes(DENY_MARKER))).toBe(false);
     expect(sources.some((source) => source.text.includes('probe context for Claude'))).toBe(false);
+  });
+});
+
+describe('latestPlanModePlan', () => {
+  it('takes the last ExitPlanMode plan, preferring the plan file while it exists', () => {
+    const file = join(tempDir(), 'plan.md');
+    writeFileSync(file, 'Edited plan.');
+    expect(latestPlanModePlan([
+      toolUse('p1', 'ExitPlanMode', { plan: 'First plan.' }),
+      toolUse('p2', 'ExitPlanMode', { plan: 'Second plan.', planFilePath: file }),
+    ])).toBe('Edited plan.');
+  });
+
+  it('falls back to the plan text when the plan file is gone', () => {
+    expect(latestPlanModePlan([
+      toolUse('p1', 'ExitPlanMode', { plan: 'Kept plan.', planFilePath: join(tempDir(), 'gone.md') }),
+    ])).toBe('Kept plan.');
+  });
+
+  it('ignores plans made by subagents and finds nothing when there is none', () => {
+    const sidechain = { ...toolUse('p1', 'ExitPlanMode', { plan: 'Subagent plan.' }), isSidechain: true };
+    expect(latestPlanModePlan([sidechain])).toBeUndefined();
+    expect(latestPlanModePlan([human('Hello there.')])).toBeUndefined();
   });
 });

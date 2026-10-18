@@ -12,8 +12,8 @@ export function assistantText(text: string): TranscriptRecord {
   return { type: 'assistant', message: { content: [{ type: 'text', text }] } };
 }
 
-export function toolUse(id: string, name: string): TranscriptRecord {
-  return { type: 'assistant', message: { content: [{ type: 'tool_use', id, name }] } };
+export function toolUse(id: string, name: string, input?: object): TranscriptRecord {
+  return { type: 'assistant', message: { content: [{ type: 'tool_use', id, name, ...(input ? { input } : {}) }] } };
 }
 
 export function toolResult(
