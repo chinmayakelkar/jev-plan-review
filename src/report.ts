@@ -166,6 +166,9 @@ export function renderMarkdown(
       `${result.ignored} statement(s) were set aside as questions, remarks, or things the user later reversed.`,
     );
   }
+  if (result.reverseError) {
+    lines.push('', '## In the plan, not from you', '', `The reverse check could not run: ${result.reverseError}`);
+  }
   if (result.fromPlan) lines.push(...fromPlanLines(result.fromPlan, options.showInconclusive ?? true));
   return lines.join('\n');
 }

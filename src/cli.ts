@@ -110,6 +110,14 @@ function runSettings(args: Args, env: Env): { code: number; output: string } {
   return { code: 0, output: showSettings(dataDir, env) };
 }
 
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function unreadable(error: unknown): { code: number; output: string } {
+  return { code: 1, output: `Could not read the plan: ${messageOf(error)}` };
+}
+
 export async function runCli(
   argv: readonly string[],
   env: Env,
@@ -132,11 +140,19 @@ export async function runCli(
   let plan: string | undefined;
   let label: string;
   if (planArg === '-') {
-    plan = readStdin();
+    try {
+      plan = readStdin();
+    } catch (error) {
+      return unreadable(error);
+    }
     label = 'the plan Claude passed in';
   } else if (planArg) {
     if (!existsSync(planArg)) return { code: 1, output: `Plan file not found: ${planArg}` };
-    plan = readFileSync(planArg, 'utf8');
+    try {
+      plan = readFileSync(planArg, 'utf8');
+    } catch (error) {
+      return unreadable(error);
+    }
     label = planArg;
   } else {
     plan = latestPlanModePlan(readTranscript(transcriptPath).slice(state.clearLine));
@@ -172,8 +188,11 @@ export async function runCli(
       ? `\n\n${outcome.overLimit} statement(s) were over the limit and not checked.`
       : '';
   const markdown = `${checked}\n${renderMarkdown(outcome.result, { showInconclusive: config.showInconclusive })}${overLimit}`;
-  const reportPath = saveReport(config.dataDir, sessionId, markdown);
-  return { code: 0, output: `${markdown}\nFull report: ${reportPath}` };
+  try {
+    return { code: 0, output: `${markdown}\nFull report: ${saveReport(config.dataDir, sessionId, markdown)}` };
+  } catch (error) {
+    return { code: 0, output: `${markdown}\nThe report could not be saved: ${messageOf(error)}` };
+  }
 }
 
 export async function main(): Promise<void> {

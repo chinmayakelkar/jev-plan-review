@@ -15,10 +15,26 @@ Pick the plan to check, in this order:
 
 Add `--since-clear` only if the user's arguments include it.
 
+Run it with the Bash tool, not PowerShell.
+
+Case 1:
+
+```
+node "${CLAUDE_PLUGIN_ROOT}/dist/bin/cli.js" --session "${CLAUDE_SESSION_ID}" --data-dir "${CLAUDE_PLUGIN_DATA}" --plan "<path>"
+```
+
+Case 2:
+
 ```
 node "${CLAUDE_PLUGIN_ROOT}/dist/bin/cli.js" --session "${CLAUDE_SESSION_ID}" --data-dir "${CLAUDE_PLUGIN_DATA}" --plan - <<'JEV_PLAN_END'
 <the plan, word for word>
 JEV_PLAN_END
+```
+
+Case 3:
+
+```
+node "${CLAUDE_PLUGIN_ROOT}/dist/bin/cli.js" --session "${CLAUDE_SESSION_ID}" --data-dir "${CLAUDE_PLUGIN_DATA}"
 ```
 
 Then show the command's output to the user exactly as printed, both tables included. Do not add your own judgement about the items, and do not change the plan unless the user asks you to.

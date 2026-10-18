@@ -294,6 +294,20 @@ describe('the reverse check', () => {
     expect(result.fromPlan?.items[0].confidence).toBeCloseTo(0.92);
   });
 
+  it('keeps the forward result when the reverse pass fails', async () => {
+    const inner = fakeJev(script);
+    const asker = {
+      async ask(state: unknown, questions: Record<string, unknown>) {
+        if (Object.keys(questions).some((name) => name.startsWith('asked_'))) throw new Error('rate limited');
+        return inner.ask(state as never, questions as never);
+      },
+    };
+    const result = await review(plan, said, asker, { reverse: true });
+    expect(result.verdicts).toHaveLength(1);
+    expect(result.fromPlan).toBeUndefined();
+    expect(result.reverseError).toBe('rate limited');
+  });
+
   it('runs only when asked to', async () => {
     const seen: Seen[] = [];
     const result = await review(plan, said, fakeJev(script, seen));

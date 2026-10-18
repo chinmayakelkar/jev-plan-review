@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runCli } from '../src/cli.js';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from '../src/config.js';
@@ -62,6 +62,32 @@ describe('runCli', () => {
     const { output } = await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', '-'], env, fakeJev({}, seen), () => text);
     expect(output.split('\n')[0]).toBe('Plan checked: the plan Claude passed in');
     expect(seen.some((call) => (call.state as { plan?: string }).plan === text)).toBe(true);
+  });
+
+  it('says so when the plan path cannot be read', async () => {
+    const { env, dataDir, plan } = setup();
+    const { code, output } = await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', dirname(plan)], env, fakeJev());
+    expect(code).toBe(1);
+    expect(output).toMatch(/^Could not read the plan: /);
+  });
+
+  it('says so when stdin cannot be read', async () => {
+    const { env, dataDir } = setup();
+    const { code, output } = await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', '-'], env, fakeJev(), () => {
+      throw new Error('stdin closed');
+    });
+    expect(code).toBe(1);
+    expect(output).toBe('Could not read the plan: stdin closed');
+  });
+
+  it('still prints the report when it cannot be saved', async () => {
+    const { env, dataDir, plan } = setup();
+    writeFileSync(join(dataDir, 'reports'), 'in the way');
+    const { code, output } = await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', plan], env, fakeJev());
+    expect(code).toBe(0);
+    expect(output).toContain('2 of 2 items reflected');
+    expect(output.trimEnd().split('\n').at(-1)).toMatch(/^The report could not be saved: /);
+    expect(output).not.toContain('Full report:');
   });
 
   it('stops when no plan is found', async () => {

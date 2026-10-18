@@ -111,6 +111,7 @@ export interface ReviewResult {
   usage: { inputTokens: number; outputTokens: number };
   elapsedMs: number;
   fromPlan?: FromPlan;
+  reverseError?: string;
 }
 
 interface Turn {
@@ -451,9 +452,15 @@ export async function review(
     decide(item, scores.get(item.id) ?? { covered: 0, contradicted: 0 }, resolved.minConfidence),
   );
   const compared = new Set([...items, ...unclear].map((statement) => statement.id));
-  const fromPlan = resolved.reverse
-    ? await checkPlan(plan, statements.filter((statement) => compared.has(statement.id)), counted, resolved)
-    : undefined;
+  let fromPlan: FromPlan | undefined;
+  let reverseError: string | undefined;
+  if (resolved.reverse) {
+    try {
+      fromPlan = await checkPlan(plan, statements.filter((statement) => compared.has(statement.id)), counted, resolved);
+    } catch (error) {
+      reverseError = error instanceof Error ? error.message : String(error);
+    }
+  }
   return {
     verdicts,
     unclear,
@@ -464,5 +471,6 @@ export async function review(
     usage,
     elapsedMs: Date.now() - started,
     ...(fromPlan ? { fromPlan } : {}),
+    ...(reverseError ? { reverseError } : {}),
   };
 }

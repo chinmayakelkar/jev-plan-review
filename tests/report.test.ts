@@ -261,6 +261,11 @@ describe('renderMarkdown with a reverse check', () => {
     expect(text).toContain('Everything the plan decides traces back to what you said.');
   });
 
+  it('says the reverse check could not run', () => {
+    const text = renderMarkdown({ ...mixed, reverseError: 'rate limited' });
+    expect(text.endsWith('## In the plan, not from you\n\nThe reverse check could not run: rate limited')).toBe(true);
+  });
+
   it('has no section without a reverse check', () => {
     expect(renderMarkdown(mixed)).not.toContain('In the plan, not from you');
   });

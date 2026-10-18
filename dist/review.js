@@ -322,9 +322,16 @@ export async function review(plan, statements, asker, options = {}) {
     const scores = await verify(parts, items, counted, resolved);
     const verdicts = items.map((item) => decide(item, scores.get(item.id) ?? { covered: 0, contradicted: 0 }, resolved.minConfidence));
     const compared = new Set([...items, ...unclear].map((statement) => statement.id));
-    const fromPlan = resolved.reverse
-        ? await checkPlan(plan, statements.filter((statement) => compared.has(statement.id)), counted, resolved)
-        : undefined;
+    let fromPlan;
+    let reverseError;
+    if (resolved.reverse) {
+        try {
+            fromPlan = await checkPlan(plan, statements.filter((statement) => compared.has(statement.id)), counted, resolved);
+        }
+        catch (error) {
+            reverseError = error instanceof Error ? error.message : String(error);
+        }
+    }
     return {
         verdicts,
         unclear,
@@ -335,5 +342,6 @@ export async function review(plan, statements, asker, options = {}) {
         usage,
         elapsedMs: Date.now() - started,
         ...(fromPlan ? { fromPlan } : {}),
+        ...(reverseError ? { reverseError } : {}),
     };
 }

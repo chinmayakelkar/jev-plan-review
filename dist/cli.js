@@ -90,6 +90,12 @@ function runSettings(args, env) {
     }
     return { code: 0, output: showSettings(dataDir, env) };
 }
+function messageOf(error) {
+    return error instanceof Error ? error.message : String(error);
+}
+function unreadable(error) {
+    return { code: 1, output: `Could not read the plan: ${messageOf(error)}` };
+}
 export async function runCli(argv, env, asker, readStdin = () => readFileSync(0, 'utf8')) {
     const args = parseArgs(argv);
     if (args.positional[0] === 'settings')
@@ -106,13 +112,23 @@ export async function runCli(argv, env, asker, readStdin = () => readFileSync(0,
     let plan;
     let label;
     if (planArg === '-') {
-        plan = readStdin();
+        try {
+            plan = readStdin();
+        }
+        catch (error) {
+            return unreadable(error);
+        }
         label = 'the plan Claude passed in';
     }
     else if (planArg) {
         if (!existsSync(planArg))
             return { code: 1, output: `Plan file not found: ${planArg}` };
-        plan = readFileSync(planArg, 'utf8');
+        try {
+            plan = readFileSync(planArg, 'utf8');
+        }
+        catch (error) {
+            return unreadable(error);
+        }
         label = planArg;
     }
     else {
@@ -144,8 +160,12 @@ export async function runCli(argv, env, asker, readStdin = () => readFileSync(0,
         ? `\n\n${outcome.overLimit} statement(s) were over the limit and not checked.`
         : '';
     const markdown = `${checked}\n${renderMarkdown(outcome.result, { showInconclusive: config.showInconclusive })}${overLimit}`;
-    const reportPath = saveReport(config.dataDir, sessionId, markdown);
-    return { code: 0, output: `${markdown}\nFull report: ${reportPath}` };
+    try {
+        return { code: 0, output: `${markdown}\nFull report: ${saveReport(config.dataDir, sessionId, markdown)}` };
+    }
+    catch (error) {
+        return { code: 0, output: `${markdown}\nThe report could not be saved: ${messageOf(error)}` };
+    }
 }
 export async function main() {
     const { code, output } = await runCli(process.argv.slice(2), process.env);
