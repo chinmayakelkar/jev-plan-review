@@ -10,7 +10,7 @@ const CRITERIA = {
     preference: 'A softer wish about style, naming, tooling or approach',
     superseded: 'A later statement by the user reverses or replaces this one. A statement that itself changes an earlier one is not superseded',
     not_actionable: 'A question, thanks, process remark or background with nothing for a plan to reflect',
-    about_tools: 'An instruction or answer about settings, tools, commands or the assistant itself, not about the work being planned',
+    about_tools: 'An instruction or answer about Claude Code, this plugin or the assistant itself, such as their settings, commands or permissions, not about the work being planned',
 };
 const CHOICES = Object.keys(CRITERIA);
 const CLASSIFY_CONTEXT = 'A user and a coding assistant are preparing an implementation plan. `turns` lists, oldest first, what the user said, split into numbered statements. `said_before_by_assistant` is there only to explain what the user was replying to; it is never a statement to classify. `during_command`, when present, names the slash command the user was running when they said it. Each question asks what kind of statement one id is.';

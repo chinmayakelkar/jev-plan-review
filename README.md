@@ -108,9 +108,8 @@ claude plugin marketplace add chinmayakelkar/jev-plan-review
 claude plugin install jev-plan-review@jev-plan-review
 ```
 
-Restart Claude Code or run `/reload-plugins`. Claude Code asks for the
-settings when you enable the plugin; the defaults below are filled in. If you
-use OpenRouter, choose it there.
+Restart Claude Code or run `/reload-plugins`. The defaults below apply until
+you change them in `/config`. If you use OpenRouter, choose it there.
 
 To try it from a checkout without installing:
 

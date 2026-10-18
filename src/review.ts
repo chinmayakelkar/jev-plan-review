@@ -16,7 +16,7 @@ const CRITERIA: Record<string, string> = {
     'A later statement by the user reverses or replaces this one. A statement that itself changes an earlier one is not superseded',
   not_actionable: 'A question, thanks, process remark or background with nothing for a plan to reflect',
   about_tools:
-    'An instruction or answer about settings, tools, commands or the assistant itself, not about the work being planned',
+    'An instruction or answer about Claude Code, this plugin or the assistant itself, such as their settings, commands or permissions, not about the work being planned',
 };
 const CHOICES = Object.keys(CRITERIA);
 
