@@ -62,6 +62,7 @@ export interface Script {
   probabilities?: (id: string) => Record<string, number> | undefined;
   covered?: (id: string, plan: string) => number;
   contradicted?: (id: string, plan: string) => number;
+  asked?: (id: string) => number;
 }
 
 export function fakeJev(script: Script = {}, seen: Seen[] = []): JevAsker {
@@ -87,6 +88,7 @@ export function fakeJev(script: Script = {}, seen: Seen[] = []): JevAsker {
               },
             ];
           }
+          if (type === 'asked') return [name, { noul: script.asked?.(id) ?? 0.95 }];
           if (type === 'covered') return [name, { noul: script.covered?.(id, plan) ?? 0.95 }];
           return [name, { noul: script.contradicted?.(id, plan) ?? 0.02 }];
         }),

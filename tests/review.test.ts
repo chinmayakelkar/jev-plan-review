@@ -275,3 +275,51 @@ describe('review', () => {
     expect(seen).toEqual([]);
   });
 });
+
+describe('the reverse check', () => {
+  const said = statementsOf('Use Postgres for storage.');
+  const plan = '- Use Postgres for storage.\n- Add a Redis cache for sessions.\n- Assume users run Node 20.\n- Run the tests.';
+  const script = {
+    kind: (id: string) => (id === 'p4' ? 'routine' : 'decision'),
+    asked: (id: string) => ({ p1: 0.95, p2: 0.08, p3: 0.36 })[id] ?? 0.95,
+  };
+
+  it('lists only plan items the user did not ask for, marking the unsure ones', async () => {
+    const result = await review(plan, said, fakeJev(script), { reverse: true });
+    expect(result.fromPlan?.checked).toBe(3);
+    expect(result.fromPlan?.items.map((item) => [item.text, item.conclusive])).toEqual([
+      ['Add a Redis cache for sessions.', true],
+      ['Assume users run Node 20.', false],
+    ]);
+    expect(result.fromPlan?.items[0].confidence).toBeCloseTo(0.92);
+  });
+
+  it('runs only when asked to', async () => {
+    const seen: Seen[] = [];
+    const result = await review(plan, said, fakeJev(script, seen));
+    expect(result.fromPlan).toBeUndefined();
+    expect(seen.flatMap((call) => call.questions).some((name) => name.startsWith('asked_'))).toBe(false);
+  });
+
+  it('checks no more plan items than the limit and counts the rest', async () => {
+    const result = await review(plan, said, fakeJev(script), { reverse: true, maxPlanItems: 2 });
+    expect(result.fromPlan?.overLimit).toBe(2);
+    expect(result.fromPlan?.items.map((item) => item.id)).toEqual(['p2']);
+  });
+
+  it('lists an item Jev could not place as not checked, without asking about it', async () => {
+    const seen: Seen[] = [];
+    const result = await review(plan, said, fakeJev({ ...script, kind: () => 'decision', kindConfidence: (id) => (id === 'p3' ? 0.6 : 0.9) }, seen), { reverse: true });
+    expect(result.fromPlan?.unclear.map((item) => item.id)).toEqual(['p3']);
+    expect(seen.flatMap((call) => call.questions)).not.toContain('asked_p3');
+  });
+
+  it('splits many statements over several requests and keeps the highest asked score', async () => {
+    const many = statementsOf(Array.from({ length: 40 }, (_, i) => `Requirement number ${i} must hold.`).join(' '));
+    const seen: Seen[] = [];
+    let call = 0;
+    const result = await review('- Add a Redis cache for sessions.', many, fakeJev({ asked: () => (call++ === 0 ? 0.9 : 0.1) }, seen), { reverse: true, maxPlanTokens: 200 });
+    expect(seen.filter((entry) => entry.questions.includes('asked_p1')).length).toBeGreaterThan(1);
+    expect(result.fromPlan?.items).toEqual([]);
+  });
+});
