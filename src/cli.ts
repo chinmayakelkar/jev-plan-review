@@ -154,6 +154,7 @@ export async function runCli(
     transcriptPath,
     windowStart: args.sinceClear ? state.clearLine : Math.max(state.clearLine, state.approvedLine),
     config,
+    reverse: true,
     ...(asker ? { asker } : {}),
   });
 

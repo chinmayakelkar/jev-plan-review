@@ -6,7 +6,7 @@ import {
   revisionRequest,
   summaryLine,
 } from '../src/report.js';
-import type { ReviewResult, Unclear, Verdict } from '../src/review.js';
+import type { FromPlan, ReviewResult, Unclear, Verdict } from '../src/review.js';
 import { DENY_MARKER, REPORT_MARKER } from '../src/transcript.js';
 
 let next = 0;
@@ -224,5 +224,44 @@ describe('claudeContext', () => {
     const text = claudeContext(many, 'D:/data/reports/sess.md');
     expect(text.length).toBeLessThan(10_000);
     expect(text).toMatch(/… and \d+ more; full report: D:\/data\/reports\/sess\.md/);
+  });
+});
+
+describe('renderMarkdown with a reverse check', () => {
+  const fromPlan = {
+    checked: 3,
+    overLimit: 1,
+    items: [
+      { id: 'p2', text: 'Add a Redis cache for sessions.', kind: 'decision', asked: 0.08, confidence: 0.92, conclusive: true },
+      { id: 'p3', text: 'Assume users run Node 20.', kind: 'assumption', asked: 0.36, confidence: 0.64, conclusive: false },
+    ],
+    unclear: [{ id: 'p5', text: 'Keep the old flag.', confidence: 0.6 }],
+  } satisfies FromPlan;
+
+  it('adds a section after the forward table', () => {
+    const text = renderMarkdown({ ...mixed, fromPlan });
+    const section = text.slice(text.indexOf('## In the plan, not from you'));
+    expect(section).toContain('jev-plan-review: 2 of 3 plan items may not come from what you said (1 unsure, 1 not checked)');
+    expect(section).toContain('These may well be right; they are listed for you to review.');
+    expect(section).toContain('| # | Kind | In the plan | From you? | Confidence | Note |');
+    expect(section).toContain('| 1 | decision | Add a Redis cache for sessions. | NO | 92% |  |');
+    expect(section).toContain('| 2 | assumption | Assume users run Node 20. | NO | 64% | unsure |');
+    expect(section).toContain('| 3 | unclear | Keep the old flag. | ? | 60% | not checked |');
+    expect(section).toContain('1 plan item(s) were over the limit and not checked.');
+  });
+
+  it('hides unsure and unclear rows when show_inconclusive is off', () => {
+    const section = renderMarkdown({ ...mixed, fromPlan }, { showInconclusive: false });
+    expect(section).not.toContain('Node 20');
+    expect(section).toContain('2 inconclusive plan item(s) are hidden; show_inconclusive is off.');
+  });
+
+  it('says so when nothing came from outside what the user said', () => {
+    const text = renderMarkdown({ ...mixed, fromPlan: { checked: 0, overLimit: 0, items: [], unclear: [] } });
+    expect(text).toContain('Everything the plan decides traces back to what you said.');
+  });
+
+  it('has no section without a reverse check', () => {
+    expect(renderMarkdown(mixed)).not.toContain('In the plan, not from you');
   });
 });

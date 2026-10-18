@@ -75,6 +75,47 @@ export function renderText(result, options = {}) {
 function cell(text) {
     return text.replace(/\s+/g, ' ').replace(/\|/g, '\\|');
 }
+function fromPlanLines(fromPlan, showInconclusive) {
+    const { items, unclear } = fromPlan;
+    const unsure = items.filter((item) => !item.conclusive).length;
+    const parts = [
+        ...(unsure ? [`${unsure} unsure`] : []),
+        ...(unclear.length ? [`${unclear.length} not checked`] : []),
+    ];
+    const lines = [
+        '',
+        '## In the plan, not from you',
+        '',
+        `jev-plan-review: ${items.length} of ${fromPlan.checked} plan items may not come from what you said${parts.length ? ` (${parts.join(', ')})` : ''}`,
+    ];
+    const byConfidence = (a, b) => b.confidence - a.confidence;
+    const rows = [
+        ...items
+            .filter((item) => showInconclusive || item.conclusive)
+            .sort((a, b) => Number(b.conclusive) - Number(a.conclusive) || byConfidence(a, b))
+            .map((item) => ({ ...item, answer: 'NO', note: item.conclusive ? '' : 'unsure' })),
+        ...(showInconclusive
+            ? [...unclear]
+                .sort(byConfidence)
+                .map((item) => ({ ...item, answer: '?', kind: 'unclear', note: 'not checked' }))
+            : []),
+    ];
+    const hidden = showInconclusive ? 0 : unsure + unclear.length;
+    if (rows.length > 0) {
+        lines.push('', 'These may well be right; they are listed for you to review.', '', '| # | Kind | In the plan | From you? | Confidence | Note |', '| --- | --- | --- | --- | --- | --- |');
+        rows.forEach((row, index) => {
+            lines.push(`| ${index + 1} | ${row.kind} | ${cell(truncate(row.text, 200))} | ${row.answer} | ${percent(row.confidence)} | ${row.note} |`);
+        });
+    }
+    else if (!hidden)
+        lines.push('', 'Everything the plan decides traces back to what you said.');
+    if (hidden)
+        lines.push('', `${hidden} inconclusive plan item(s) are hidden; show_inconclusive is off.`);
+    if (fromPlan.overLimit > 0) {
+        lines.push('', `${fromPlan.overLimit} plan item(s) were over the limit and not checked.`);
+    }
+    return lines;
+}
 export function renderMarkdown(result, options = {}) {
     const { rows, hidden } = rowsOf(result, options.showInconclusive ?? true);
     const lines = [summaryLine(result), ''];
@@ -91,6 +132,8 @@ export function renderMarkdown(result, options = {}) {
     if (result.ignored > 0) {
         lines.push('', `${result.ignored} statement(s) were set aside as questions, remarks, or things the user later reversed.`);
     }
+    if (result.fromPlan)
+        lines.push(...fromPlanLines(result.fromPlan, options.showInconclusive ?? true));
     return lines.join('\n');
 }
 export function revisionRequest(result, revision, max) {

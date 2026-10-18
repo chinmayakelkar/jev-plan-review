@@ -130,6 +130,7 @@ export async function runCli(argv, env, asker, readStdin = () => readFileSync(0,
         transcriptPath,
         windowStart: args.sinceClear ? state.clearLine : Math.max(state.clearLine, state.approvedLine),
         config,
+        reverse: true,
         ...(asker ? { asker } : {}),
     });
     if (outcome.kind === 'skipped') {

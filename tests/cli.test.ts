@@ -192,4 +192,23 @@ describe('runCli settings', () => {
     }
     expect(loadSettings(dataDir)).toEqual(DEFAULT_SETTINGS);
   });
+
+  it('shows the reverse section', async () => {
+    const { env, dataDir, plan } = setup();
+    const { output } = await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', plan], env, fakeJev({ asked: () => 0.05 }));
+    expect(output).toContain('## In the plan, not from you');
+    expect(output).toContain('Store data in SQLite.');
+  });
+
+  it('reports a plan with only routine steps as fully traced', async () => {
+    const { env, dataDir } = setup();
+    const routine = join(tempDir(), 'routine.md');
+    writeFileSync(routine, '# Plan\n\n```\ncode\n```\n\n- Run the tests.');
+    const { output } = await runCli(
+      ['--session', 'sess', '--data-dir', dataDir, '--plan', routine],
+      env,
+      fakeJev({ kind: (id) => (id.startsWith('p') ? 'routine' : 'requirement') }),
+    );
+    expect(output).toContain('Everything the plan decides traces back to what you said.');
+  });
 });

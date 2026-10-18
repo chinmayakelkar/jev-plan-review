@@ -127,4 +127,20 @@ describe('runReview', () => {
     });
     expect(outcome).toEqual({ kind: 'skipped', reason: 'Jev request failed (503): busy' });
   });
+
+  it('runs the reverse check only when asked', async () => {
+    const base = {
+      plan: 'Store data in SQLite. Add CSV export.',
+      transcriptPath: transcript(),
+      windowStart: 0,
+      asker: fakeJev(),
+    };
+    const off = await runReview({ ...base, config: config() });
+    const on = await runReview({ ...base, config: config(), reverse: true });
+    const capped = await runReview({ ...base, config: config({ maxStatements: 1 }), reverse: true });
+    if (off.kind !== 'reviewed' || on.kind !== 'reviewed' || capped.kind !== 'reviewed') throw new Error('skipped');
+    expect(off.result.fromPlan).toBeUndefined();
+    expect(on.result.fromPlan).toBeDefined();
+    expect(capped.result.fromPlan?.overLimit).toBe(on.result.fromPlan!.checked - 1);
+  });
 });

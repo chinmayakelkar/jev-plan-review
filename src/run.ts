@@ -10,6 +10,7 @@ export interface RunInput {
   windowStart: number;
   config: Config;
   asker?: JevAsker;
+  reverse?: boolean;
 }
 
 export type RunOutcome =
@@ -42,6 +43,8 @@ export async function runReview(input: RunInput): Promise<RunOutcome> {
     }
     const result = await review(input.plan, statements, asker, {
       minConfidence: config.minConfidence,
+      reverse: input.reverse ?? false,
+      maxPlanItems: config.maxStatements,
     });
     return { kind: 'reviewed', result, overLimit: skipped };
   } catch (error) {

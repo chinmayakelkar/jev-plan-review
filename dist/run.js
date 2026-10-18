@@ -29,6 +29,8 @@ export async function runReview(input) {
         }
         const result = await review(input.plan, statements, asker, {
             minConfidence: config.minConfidence,
+            reverse: input.reverse ?? false,
+            maxPlanItems: config.maxStatements,
         });
         return { kind: 'reviewed', result, overLimit: skipped };
     }
