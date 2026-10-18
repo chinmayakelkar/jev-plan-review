@@ -72,11 +72,11 @@ describe('runReview', () => {
     const base = { plan: 'A plan.', transcriptPath: transcript(), windowStart: 0 };
     expect(await runReview({ ...base, config: config({ apiKey: undefined }) })).toEqual({
       kind: 'skipped',
-      reason: 'no TypeSafe API key is set (TYPESAFE_API_KEY); run /jev-plan-review:settings for help',
+      reason: 'no TypeSafe API key is set; add TYPESAFE_API_KEY to the "env" section of ~/.claude/settings.json and restart Claude Code',
     });
     expect(await runReview({ ...base, config: config({ apiKey: undefined, provider: 'openrouter' }) })).toEqual({
       kind: 'skipped',
-      reason: 'no OpenRouter API key is set (OPENROUTER_API_KEY); run /jev-plan-review:settings for help',
+      reason: 'no OpenRouter API key is set; add OPENROUTER_API_KEY to the "env" section of ~/.claude/settings.json and restart Claude Code',
     });
   });
 

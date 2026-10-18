@@ -7,7 +7,7 @@ import { loadState, saveReport, saveState } from './session.js';
 import { readTranscript, REPORT_MARKER } from './transcript.js';
 
 const BROKEN_SETTINGS =
-  'settings.json could not be read in full, so defaults were used and no plan was sent back; run /jev-plan-review:settings to fix it.';
+  'a plugin option could not be used, so its default was used and no plan was sent back; fix it in /config.';
 
 export interface HookInput {
   hook_event_name?: string;

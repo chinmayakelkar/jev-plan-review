@@ -241,19 +241,19 @@ describe('handleHook when things go wrong', () => {
     expect(output?.hookSpecificOutput?.permissionDecision).toBeUndefined();
     expect(toClaude(output)).toContain('was skipped: no TypeSafe API key');
     expect(output?.systemMessage).toContain('skipped — no TypeSafe API key');
-    expect(output?.systemMessage).toContain('/jev-plan-review:settings');
+    expect(output?.systemMessage).toContain('TYPESAFE_API_KEY');
   });
 
-  it('reviews but sends nothing back when the settings file could not be read', async () => {
+  it('reviews but sends nothing back when a plugin option could not be used', async () => {
     const path = writeTranscript([human('Add a CSV export command too.')]);
     const broken = config({ settingsBroken: true });
     const reviewed = await handleHook(preToolUse(path), broken, missing());
     expect(reviewed?.hookSpecificOutput?.permissionDecision).toBeUndefined();
-    expect(toClaude(reviewed)).toContain('settings.json could not be read');
+    expect(toClaude(reviewed)).toContain('a plugin option could not be used');
     expect(toClaude(reviewed)).toContain('[missing]');
     const skipped = await handleHook(preToolUse(path), { ...broken, apiKey: undefined });
-    expect(skipped?.systemMessage).toContain('settings.json could not be read');
-    expect(toClaude(skipped)).toContain('settings.json could not be read');
+    expect(skipped?.systemMessage).toContain('a plugin option could not be used');
+    expect(toClaude(skipped)).toContain('a plugin option could not be used');
   });
 
   it('ignores subagents and unknown events', async () => {

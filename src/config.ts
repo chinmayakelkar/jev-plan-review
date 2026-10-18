@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_MODEL, SYSTEM_ONE_URL } from './jev.js';
@@ -103,30 +103,14 @@ export function withSetting(settings: Settings, key: string, raw: unknown): Sett
   }
 }
 
-export function settingsPath(dataDir: string): string {
-  return join(dataDir, 'settings.json');
-}
+export const OPTION_PREFIX = 'CLAUDE_PLUGIN_OPTION_';
 
-export function readSettings(dataDir: string): { settings: Settings; broken: boolean } {
-  const path = settingsPath(dataDir);
-  if (!existsSync(path)) return { settings: DEFAULT_SETTINGS, broken: false };
-  let saved: unknown;
-  try {
-    saved = JSON.parse(readFileSync(path, 'utf8'));
-  } catch {
-    return { settings: DEFAULT_SETTINGS, broken: true };
-  }
-  if (saved === null || typeof saved !== 'object' || Array.isArray(saved)) {
-    return { settings: DEFAULT_SETTINGS, broken: true };
-  }
+export function readOptions(env: Env): { settings: Settings; broken: boolean } {
   let settings = DEFAULT_SETTINGS;
   let broken = false;
-  for (const [key, value] of Object.entries(saved)) {
-    if (!(key in DEFAULT_SETTINGS)) continue;
-    if (value !== null && typeof value === 'object') {
-      broken = true;
-      continue;
-    }
+  for (const key of Object.keys(DEFAULT_SETTINGS)) {
+    const value = given(env[OPTION_PREFIX + key.toUpperCase()]);
+    if (value === undefined) continue;
     try {
       settings = withSetting(settings, key, value);
     } catch {
@@ -134,15 +118,6 @@ export function readSettings(dataDir: string): { settings: Settings; broken: boo
     }
   }
   return { settings, broken };
-}
-
-export function loadSettings(dataDir: string): Settings {
-  return readSettings(dataDir).settings;
-}
-
-export function saveSettings(dataDir: string, settings: Settings): void {
-  mkdirSync(dataDir, { recursive: true });
-  writeFileSync(settingsPath(dataDir), `${JSON.stringify(settings, null, 2)}\n`);
 }
 
 export function claudeDir(env: Env): string {
@@ -166,7 +141,7 @@ export function resolveDataDir(env: Env, override?: string): string {
 
 export function resolveConfig(env: Env, settingsEnv: Env = {}, dataDir?: string): Config {
   const dir = resolveDataDir(env, dataDir);
-  const { settings, broken } = readSettings(dir);
+  const { settings, broken } = readOptions(env);
   const { url, keyVar } = PROVIDERS[settings.provider];
   const apiKey = given(env[keyVar]) ?? given(settingsEnv[keyVar]);
   return {

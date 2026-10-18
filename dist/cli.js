@@ -1,33 +1,20 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { claudeDir, given, loadSettings, PROVIDERS, readSettingsEnv, resolveConfig, resolveDataDir, saveSettings, settingsPath, withSetting, } from './config.js';
+import { claudeDir, DEFAULT_SETTINGS, given, OPTION_PREFIX, readSettingsEnv, resolveConfig, } from './config.js';
 import { renderMarkdown } from './report.js';
 import { runReview } from './run.js';
 import { loadState, saveReport } from './session.js';
 import { latestPlanModePlan, readTranscript } from './transcript.js';
-const USAGE = [
-    'usage: node cli.js --session <id> [--plan <file>] [--since-clear] [--data-dir <dir>]',
-    '       node cli.js settings [--set <name>=<value>]... [--data-dir <dir>]',
-].join('\n');
+const USAGE = 'usage: node cli.js --session <id> [--plan <file>] [--since-clear] [--option <name>=<value>]... [--data-dir <dir>]';
 const VALUE_FLAGS = ['session', 'plan', 'data-dir'];
-const SETTING_HELP = {
-    provider: 'typesafe or openrouter: where Jev requests are sent',
-    min_confidence: '50 to 100: answers below this are marked unsure and are never sent back to Claude',
-    auto_review: 'on or off: review every plan-mode plan before it is shown',
-    max_revisions: '1 or more: how many times one plan may be sent back',
-    max_statements: '1 or more: how many statements one review may check',
-    show_inconclusive: 'on or off: show items Jev was unsure of',
-    reverse_plan_check: 'on or off: in the command, also list what the plan decided that the user never said',
-    model: 'the Jev model name',
-};
 function parseArgs(argv) {
-    const args = { values: new Map(), sets: [], sinceClear: false, positional: [] };
+    const args = { values: new Map(), options: [], sinceClear: false, positional: [] };
     for (let index = 0; index < argv.length; index += 1) {
         const arg = argv[index];
         if (arg === '--since-clear')
             args.sinceClear = true;
-        else if (arg === '--set') {
-            args.sets.push(argv[index + 1] ?? '');
+        else if (arg === '--option') {
+            args.options.push(argv[index + 1] ?? '');
             index += 1;
         }
         else if (arg.startsWith('--') && VALUE_FLAGS.includes(arg.slice(2))) {
@@ -50,46 +37,6 @@ export function findTranscript(claudeDirPath, sessionId) {
     }
     return undefined;
 }
-function showSettings(dataDir, env) {
-    const settings = loadSettings(dataDir);
-    const { label, keyVar } = PROVIDERS[settings.provider];
-    const hasKey = Boolean(given(env[keyVar]) ?? given(readSettingsEnv(env)[keyVar]));
-    const rows = Object.keys(SETTING_HELP).map((key) => {
-        const value = settings[key];
-        const shown = typeof value === 'boolean' ? (value ? 'on' : 'off') : String(value);
-        return `  ${key.padEnd(18)} ${shown.padEnd(12)} ${SETTING_HELP[key]}`;
-    });
-    return [
-        'jev-plan-review settings',
-        ...rows,
-        hasKey
-            ? `${label} API key: ${keyVar} is set.`
-            : `${label} API key: ${keyVar} is not set. Add it to the "env" section of ${join(claudeDir(env), 'settings.json')} and restart Claude Code. Do not paste the key into the chat.`,
-        `Saved in ${settingsPath(dataDir)}`,
-    ].join('\n');
-}
-function runSettings(args, env) {
-    const dataDir = resolveDataDir(env, args.values.get('data-dir'));
-    if (args.sets.length > 0) {
-        let settings = loadSettings(dataDir);
-        try {
-            for (const pair of args.sets) {
-                const split = pair.indexOf('=');
-                if (split < 1)
-                    throw new Error(`expected <name>=<value>, got "${pair}"`);
-                settings = withSetting(settings, pair.slice(0, split).trim(), pair.slice(split + 1));
-            }
-        }
-        catch (error) {
-            return {
-                code: 1,
-                output: `Nothing was changed: ${error instanceof Error ? error.message : String(error)}`,
-            };
-        }
-        saveSettings(dataDir, settings);
-    }
-    return { code: 0, output: showSettings(dataDir, env) };
-}
 function messageOf(error) {
     return error instanceof Error ? error.message : String(error);
 }
@@ -98,12 +45,22 @@ function unreadable(error) {
 }
 export async function runCli(argv, env, asker, readStdin = () => readFileSync(0, 'utf8')) {
     const args = parseArgs(argv);
-    if (args.positional[0] === 'settings')
-        return runSettings(args, env);
     const sessionId = given(args.values.get('session'));
     if (!sessionId)
         return { code: 1, output: USAGE };
-    const config = resolveConfig(env, readSettingsEnv(env), args.values.get('data-dir'));
+    const withOptions = { ...env };
+    for (const pair of args.options) {
+        const split = pair.indexOf('=');
+        const name = pair.slice(0, split < 0 ? undefined : split).trim();
+        if (!(name in DEFAULT_SETTINGS)) {
+            return {
+                code: 1,
+                output: `unknown option ${name}; the options are ${Object.keys(DEFAULT_SETTINGS).join(', ')}`,
+            };
+        }
+        withOptions[OPTION_PREFIX + name.toUpperCase()] = split < 0 ? '' : pair.slice(split + 1);
+    }
+    const config = resolveConfig(withOptions, readSettingsEnv(env), args.values.get('data-dir'));
     const state = loadState(config.dataDir, sessionId);
     const transcriptPath = findTranscript(claudeDir(env), sessionId);
     if (!transcriptPath)

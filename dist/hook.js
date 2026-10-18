@@ -4,7 +4,7 @@ import { claudeContext, renderMarkdown, revisionRequest } from './report.js';
 import { runReview } from './run.js';
 import { loadState, saveReport, saveState } from './session.js';
 import { readTranscript, REPORT_MARKER } from './transcript.js';
-const BROKEN_SETTINGS = 'settings.json could not be read in full, so defaults were used and no plan was sent back; run /jev-plan-review:settings to fix it.';
+const BROKEN_SETTINGS = 'a plugin option could not be used, so its default was used and no plan was sent back; fix it in /config.';
 function skipped(reason) {
     return {
         systemMessage: `jev-plan-review: skipped — ${reason}`,

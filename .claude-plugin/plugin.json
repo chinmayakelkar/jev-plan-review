@@ -5,5 +5,63 @@
   "author": {
     "name": "chinmayakelkar"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "userConfig": {
+    "provider": {
+      "type": "string",
+      "title": "Jev provider",
+      "description": "typesafe or openrouter: where Jev requests are sent",
+      "default": "typesafe",
+      "options": [
+        "typesafe",
+        "openrouter"
+      ]
+    },
+    "min_confidence": {
+      "type": "number",
+      "title": "Confidence threshold (%)",
+      "description": "50 to 100: answers below this are marked unsure and are never sent back to Claude",
+      "default": 80,
+      "min": 50,
+      "max": 100
+    },
+    "auto_review": {
+      "type": "boolean",
+      "title": "Review plan-mode plans automatically",
+      "description": "on or off: review every plan-mode plan before it is shown",
+      "default": true
+    },
+    "max_revisions": {
+      "type": "number",
+      "title": "Times one plan may be sent back",
+      "description": "1 or more: how many times one plan may be sent back",
+      "default": 2,
+      "min": 1
+    },
+    "max_statements": {
+      "type": "number",
+      "title": "Statements one review may check",
+      "description": "1 or more: how many statements one review may check",
+      "default": 150,
+      "min": 1
+    },
+    "show_inconclusive": {
+      "type": "boolean",
+      "title": "Show items Jev was unsure of",
+      "description": "on or off: show items Jev was unsure of",
+      "default": true
+    },
+    "reverse_plan_check": {
+      "type": "boolean",
+      "title": "List what the plan decided that you never said",
+      "description": "on or off: in the command, also list what the plan decided that the user never said",
+      "default": true
+    },
+    "model": {
+      "type": "string",
+      "title": "Jev model",
+      "description": "the Jev model name",
+      "default": "jev-latest"
+    }
+  }
 }

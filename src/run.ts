@@ -28,7 +28,7 @@ export async function runReview(input: RunInput): Promise<RunOutcome> {
     const { label, keyVar } = PROVIDERS[config.provider];
     return {
       kind: 'skipped',
-      reason: `no ${label} API key is set (${keyVar}); run /jev-plan-review:settings for help`,
+      reason: `no ${label} API key is set; add ${keyVar} to the "env" section of ~/.claude/settings.json and restart Claude Code`,
     };
   }
   if (!input.plan.trim()) return { kind: 'skipped', reason: 'the plan is empty' };

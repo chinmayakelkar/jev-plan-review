@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runCli } from '../src/cli.js';
-import { DEFAULT_SETTINGS, loadSettings, saveSettings } from '../src/config.js';
+import { DEFAULT_SETTINGS } from '../src/config.js';
 import { saveState } from '../src/session.js';
 import type { TranscriptRecord } from '../src/transcript.js';
 import { fakeJev, human, tempDir, toolResult, toolUse, writeTranscript, type Seen } from './helpers.js';
@@ -129,27 +129,38 @@ describe('runCli', () => {
     expect(sinceClear.output).toContain('Add a CSV export command too.');
   });
 
-  it('uses the saved confidence threshold', async () => {
+  it('uses the confidence threshold option', async () => {
     const { env, dataDir, plan } = setup();
     const unsure = fakeJev({ covered: () => 0.35 });
     const base = ['--session', 'sess', '--data-dir', dataDir, '--plan', plan];
 
     expect((await runCli(base, env, unsure)).output).toContain('| NO | 65% | missing, unsure |');
 
-    saveSettings(dataDir, { ...DEFAULT_SETTINGS, min_confidence: 60 });
-    expect((await runCli(base, env, unsure)).output).toContain('| NO | 65% | missing |');
+    expect((await runCli([...base, '--option', 'min_confidence=60'], env, unsure)).output).toContain('| NO | 65% | missing |');
   });
 
   it('hides what Jev was unsure of when show_inconclusive is off', async () => {
     const { env, dataDir, plan } = setup();
-    saveSettings(dataDir, { ...DEFAULT_SETTINGS, show_inconclusive: false });
     const { output } = await runCli(
-      ['--session', 'sess', '--data-dir', dataDir, '--plan', plan],
+      ['--session', 'sess', '--data-dir', dataDir, '--plan', plan, '--option', 'show_inconclusive=off'],
       env,
       fakeJev({ covered: () => 0.35 }),
     );
     expect(output).toContain('2 inconclusive item(s) are hidden; show_inconclusive is off.');
     expect(output).not.toContain('| NO |');
+  });
+
+  it('refuses an unknown option', async () => {
+    const { env, dataDir, plan } = setup();
+    const { code, output } = await runCli(
+      ['--session', 'sess', '--data-dir', dataDir, '--plan', plan, '--option', 'colour=blue'],
+      env,
+      fakeJev(),
+    );
+    expect(code).toBe(1);
+    expect(output).toBe(
+      'unknown option colour; the options are provider, min_confidence, auto_review, max_revisions, max_statements, show_inconclusive, reverse_plan_check, model',
+    );
   });
 
   it('explains what is wrong when it cannot run', async () => {
@@ -164,83 +175,6 @@ describe('runCli', () => {
       'No transcript found for session nope',
     );
   });
-});
-
-describe('runCli settings', () => {
-  it('shows the defaults and says when the key is not set', async () => {
-    const dataDir = tempDir();
-    const { code, output } = await runCli(['settings', '--data-dir', dataDir], { CLAUDE_CONFIG_DIR: tempDir() });
-    expect(code).toBe(0);
-    expect(output).toMatch(/provider\s+typesafe/);
-    expect(output).toMatch(/min_confidence\s+80/);
-    expect(output).toMatch(/auto_review\s+on/);
-    expect(output).not.toMatch(/revise\s/);
-    expect(output).not.toContain('share_with_claude');
-    expect(output).toMatch(/max_revisions\s+2/);
-    expect(output).toMatch(/max_statements\s+150/);
-    expect(output).toMatch(/show_inconclusive\s+on/);
-    expect(output).toMatch(/reverse_plan_check\s+on/);
-    expect(output).toMatch(/model\s+jev-latest/);
-    expect(output).toContain('TYPESAFE_API_KEY is not set');
-    expect(output).toContain('Do not paste the key into the chat');
-  });
-
-  it('changes several settings at once and keeps them', async () => {
-    const dataDir = tempDir();
-    const env = { CLAUDE_CONFIG_DIR: tempDir(), OPENROUTER_API_KEY: 'or-key' };
-    const { code, output } = await runCli(
-      ['settings', '--data-dir', dataDir, '--set', 'provider=openrouter', '--set', 'min_confidence=90', '--set', 'auto_review=off'],
-      env,
-    );
-    expect(code).toBe(0);
-    expect(output).toMatch(/provider\s+openrouter/);
-    expect(output).toMatch(/auto_review\s+off/);
-    expect(output).toContain('OPENROUTER_API_KEY is set');
-    expect(output).not.toContain('or-key');
-    expect(loadSettings(dataDir)).toEqual({
-      ...DEFAULT_SETTINGS,
-      provider: 'openrouter',
-      min_confidence: 90,
-      auto_review: false,
-    });
-  });
-
-  it('finds the key in settings.json too', async () => {
-    const claude = tempDir();
-    writeFileSync(join(claude, 'settings.json'), JSON.stringify({ env: { TYPESAFE_API_KEY: 'k' } }));
-    const { output } = await runCli(['settings', '--data-dir', tempDir()], { CLAUDE_CONFIG_DIR: claude });
-    expect(output).toContain('TYPESAFE_API_KEY is set');
-  });
-
-  it('changes nothing when one value is bad', async () => {
-    const dataDir = tempDir();
-    const env = { CLAUDE_CONFIG_DIR: tempDir() };
-    const bad = await runCli(
-      ['settings', '--data-dir', dataDir, '--set', 'auto_review=off', '--set', 'min_confidence=20'],
-      env,
-    );
-    expect(bad).toEqual({
-      code: 1,
-      output: 'Nothing was changed: min_confidence must be a number from 50 to 100',
-    });
-    expect(loadSettings(dataDir).auto_review).toBe(true);
-
-    const shapeless = await runCli(['settings', '--data-dir', dataDir, '--set', 'auto_review'], env);
-    expect(shapeless.output).toBe('Nothing was changed: expected <name>=<value>, got "auto_review"');
-  });
-
-  it('refuses the removed settings and changes nothing', async () => {
-    const dataDir = tempDir();
-    const env = { CLAUDE_CONFIG_DIR: tempDir() };
-    for (const name of ['revise', 'share_with_claude']) {
-      const { code, output } = await runCli(['settings', '--data-dir', dataDir, '--set', `${name}=off`], env);
-      expect(code).toBe(1);
-      expect(output).toBe(
-        `Nothing was changed: unknown setting ${name}; the settings are ${Object.keys(DEFAULT_SETTINGS).join(', ')}`,
-      );
-    }
-    expect(loadSettings(dataDir)).toEqual(DEFAULT_SETTINGS);
-  });
 
   it('shows the reverse section', async () => {
     const { env, dataDir, plan } = setup();
@@ -251,9 +185,8 @@ describe('runCli settings', () => {
 
   it('leaves out the reverse section when reverse_plan_check is off', async () => {
     const { env, dataDir, plan } = setup();
-    saveSettings(dataDir, { ...DEFAULT_SETTINGS, reverse_plan_check: false });
     const seen: Seen[] = [];
-    const { output } = await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', plan], env, fakeJev({ asked: () => 0.05 }, seen));
+    const { output } = await runCli(['--session', 'sess', '--data-dir', dataDir, '--plan', plan, '--option', 'reverse_plan_check=off'], env, fakeJev({ asked: () => 0.05 }, seen));
     expect(output).not.toContain('In the plan, not from you');
     expect(seen.flatMap((call) => call.questions).some((name) => name.startsWith('asked_'))).toBe(false);
   });

@@ -4,11 +4,9 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SETTINGS,
   given,
-  loadSettings,
+  readOptions,
   readSettingsEnv,
   resolveConfig,
-  saveSettings,
-  settingsPath,
   withSetting,
 } from '../src/config.js';
 import { tempDir } from './helpers.js';
@@ -22,9 +20,10 @@ describe('given', () => {
   });
 });
 
-describe('settings', () => {
-  it('start from the defaults', () => {
-    expect(loadSettings(tempDir())).toEqual({
+describe('readOptions', () => {
+  it('starts from the defaults', () => {
+    expect(readOptions({})).toEqual({ settings: DEFAULT_SETTINGS, broken: false });
+    expect(DEFAULT_SETTINGS).toEqual({
       provider: 'typesafe',
       min_confidence: 80,
       auto_review: true,
@@ -36,13 +35,35 @@ describe('settings', () => {
     });
   });
 
-  it('save and load', () => {
-    const dir = join(tempDir(), 'not-made-yet');
-    const changed = { ...DEFAULT_SETTINGS, provider: 'openrouter' as const, auto_review: false };
-    saveSettings(dir, changed);
-    expect(loadSettings(dir)).toEqual(changed);
+  it('reads the plugin options from the environment', () => {
+    expect(
+      readOptions({
+        CLAUDE_PLUGIN_OPTION_MIN_CONFIDENCE: '90',
+        CLAUDE_PLUGIN_OPTION_AUTO_REVIEW: 'false',
+        CLAUDE_PLUGIN_OPTION_PROVIDER: 'openrouter',
+      }),
+    ).toEqual({
+      settings: { ...DEFAULT_SETTINGS, min_confidence: 90, auto_review: false, provider: 'openrouter' },
+      broken: false,
+    });
   });
 
+  it('falls back to the default for a bad value and says so', () => {
+    expect(readOptions({ CLAUDE_PLUGIN_OPTION_MIN_CONFIDENCE: 'abc' })).toEqual({
+      settings: DEFAULT_SETTINGS,
+      broken: true,
+    });
+  });
+
+  it('treats an unsubstituted placeholder as not given', () => {
+    expect(readOptions({ CLAUDE_PLUGIN_OPTION_MODEL: '${user_config.model}' })).toEqual({
+      settings: DEFAULT_SETTINGS,
+      broken: false,
+    });
+  });
+});
+
+describe('withSetting', () => {
   it('accept plain words for values and say what is wrong with a bad one', () => {
     expect(withSetting(DEFAULT_SETTINGS, 'auto_review', 'OFF').auto_review).toBe(false);
     expect(withSetting(DEFAULT_SETTINGS, 'auto_review', 'no').auto_review).toBe(false);
@@ -79,16 +100,6 @@ describe('settings', () => {
     expect(() => withSetting(DEFAULT_SETTINGS, 'model', ' ')).toThrow('model must not be empty');
     expect(() => withSetting(DEFAULT_SETTINGS, 'colour', 'blue')).toThrow('unknown setting colour');
   });
-
-  it('fall back to the default for a broken file or a bad value', () => {
-    const dir = tempDir();
-    writeFileSync(settingsPath(dir), '{');
-    expect(loadSettings(dir)).toEqual(DEFAULT_SETTINGS);
-    writeFileSync(settingsPath(dir), JSON.stringify({ auto_review: false, min_confidence: 'high', revise: false, share_with_claude: false }));
-    expect(loadSettings(dir)).toEqual({ ...DEFAULT_SETTINGS, auto_review: false });
-    writeFileSync(settingsPath(dir), '[1, 2]');
-    expect(loadSettings(dir)).toEqual(DEFAULT_SETTINGS);
-  });
 });
 
 describe('resolveConfig', () => {
@@ -110,17 +121,17 @@ describe('resolveConfig', () => {
     expect(resolveConfig({}).dataDir.endsWith('jev-plan-review')).toBe(true);
   });
 
-  it('reads the saved settings and the key of the chosen provider', () => {
+  it('reads the plugin options and the key of the chosen provider', () => {
     const dir = tempDir();
-    saveSettings(dir, {
-      ...DEFAULT_SETTINGS,
-      provider: 'openrouter',
-      min_confidence: 70,
-      auto_review: false,
-      max_statements: 40,
-      show_inconclusive: false,
-    });
-    const env = { TYPESAFE_API_KEY: 'ts-key', OPENROUTER_API_KEY: 'or-key' };
+    const env = {
+      TYPESAFE_API_KEY: 'ts-key',
+      OPENROUTER_API_KEY: 'or-key',
+      CLAUDE_PLUGIN_OPTION_PROVIDER: 'openrouter',
+      CLAUDE_PLUGIN_OPTION_MIN_CONFIDENCE: '70',
+      CLAUDE_PLUGIN_OPTION_AUTO_REVIEW: 'false',
+      CLAUDE_PLUGIN_OPTION_MAX_STATEMENTS: '40',
+      CLAUDE_PLUGIN_OPTION_SHOW_INCONCLUSIVE: 'false',
+    };
     expect(resolveConfig(env, {}, dir)).toMatchObject({
       apiKey: 'or-key',
       provider: 'openrouter',
@@ -140,24 +151,17 @@ describe('resolveConfig', () => {
   });
 });
 
-describe('resolveConfig with a settings file it cannot fully read', () => {
-  it('uses the defaults and says the file is broken', () => {
+describe('resolveConfig with a plugin option it cannot use', () => {
+  it('uses the default and says the settings are broken', () => {
     const dir = tempDir();
-    writeFileSync(settingsPath(dir), '{"auto_review": false,');
-    expect(resolveConfig({}, {}, dir)).toMatchObject({ autoReview: true, settingsBroken: true });
-    writeFileSync(settingsPath(dir), JSON.stringify({ model: {} }));
-    expect(resolveConfig({}, {}, dir)).toMatchObject({
-      model: 'jev-latest',
+    expect(resolveConfig({ CLAUDE_PLUGIN_OPTION_MAX_REVISIONS: 'many' }, {}, dir)).toMatchObject({
+      maxRevisions: 2,
       settingsBroken: true,
     });
   });
 
-  it('does not call a missing file or an unknown key broken', () => {
-    const dir = tempDir();
-    expect(resolveConfig({}, {}, dir).settingsBroken).toBeUndefined();
-    writeFileSync(settingsPath(dir), JSON.stringify({ extra: 1 }));
-    expect(resolveConfig({}, {}, dir)).toMatchObject({ autoReview: true });
-    expect(resolveConfig({}, {}, dir).settingsBroken).toBeUndefined();
+  it('does not call a missing option broken', () => {
+    expect(resolveConfig({}, {}, tempDir()).settingsBroken).toBeUndefined();
   });
 });
 

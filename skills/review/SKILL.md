@@ -20,13 +20,13 @@ Run it with the Bash tool, not PowerShell.
 Case 1:
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/dist/bin/cli.js" --session "${CLAUDE_SESSION_ID}" --data-dir "${CLAUDE_PLUGIN_DATA}" --plan "<path>"
+node "${CLAUDE_PLUGIN_ROOT}/dist/bin/cli.js" --session "${CLAUDE_SESSION_ID}" --data-dir "${CLAUDE_PLUGIN_DATA}" --option provider="${user_config.provider}" --option min_confidence="${user_config.min_confidence}" --option auto_review="${user_config.auto_review}" --option max_revisions="${user_config.max_revisions}" --option max_statements="${user_config.max_statements}" --option show_inconclusive="${user_config.show_inconclusive}" --option reverse_plan_check="${user_config.reverse_plan_check}" --option model="${user_config.model}" --plan "<path>"
 ```
 
 Case 2:
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/dist/bin/cli.js" --session "${CLAUDE_SESSION_ID}" --data-dir "${CLAUDE_PLUGIN_DATA}" --plan - <<'JEV_PLAN_END'
+node "${CLAUDE_PLUGIN_ROOT}/dist/bin/cli.js" --session "${CLAUDE_SESSION_ID}" --data-dir "${CLAUDE_PLUGIN_DATA}" --option provider="${user_config.provider}" --option min_confidence="${user_config.min_confidence}" --option auto_review="${user_config.auto_review}" --option max_revisions="${user_config.max_revisions}" --option max_statements="${user_config.max_statements}" --option show_inconclusive="${user_config.show_inconclusive}" --option reverse_plan_check="${user_config.reverse_plan_check}" --option model="${user_config.model}" --plan - <<'JEV_PLAN_END'
 <the plan, word for word>
 JEV_PLAN_END
 ```
@@ -34,9 +34,9 @@ JEV_PLAN_END
 Case 3:
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/dist/bin/cli.js" --session "${CLAUDE_SESSION_ID}" --data-dir "${CLAUDE_PLUGIN_DATA}"
+node "${CLAUDE_PLUGIN_ROOT}/dist/bin/cli.js" --session "${CLAUDE_SESSION_ID}" --data-dir "${CLAUDE_PLUGIN_DATA}" --option provider="${user_config.provider}" --option min_confidence="${user_config.min_confidence}" --option auto_review="${user_config.auto_review}" --option max_revisions="${user_config.max_revisions}" --option max_statements="${user_config.max_statements}" --option show_inconclusive="${user_config.show_inconclusive}" --option reverse_plan_check="${user_config.reverse_plan_check}" --option model="${user_config.model}"
 ```
 
 Then show the command's output to the user exactly as printed, both tables included. Do not add your own judgement about the items, and do not change the plan unless the user asks you to.
 
-If the output says the review was skipped, pass on the reason. If it says an API key is not set, tell the user to run `/jev-plan-review:settings`, which explains where the key goes. Never ask the user to type or paste a key into the conversation.
+If the output says the review was skipped, pass on the reason. If it says an API key is not set, pass on its instructions. Never ask the user to type or paste a key into the conversation.
