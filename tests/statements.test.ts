@@ -81,6 +81,13 @@ describe('splitText', () => {
     expect(only.length).toBe(500);
     expect(only.endsWith('…')).toBe(true);
   });
+
+  it('drops bold markers so a sentence ending inside bold splits cleanly', () => {
+    expect(splitText('2. **Write with the stdlib `csv` module.** It quotes commas, and a ** b stays.')).toEqual([
+      '2. Write with the stdlib `csv` module.',
+      'It quotes commas, and a ** b stays.',
+    ]);
+  });
 });
 
 describe('toStatements', () => {

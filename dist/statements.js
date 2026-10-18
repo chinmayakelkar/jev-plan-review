@@ -5,6 +5,7 @@ const HEADING = /^\s*#+\s+/;
 const DASH_BULLET = /^\s*[-*+•]\s+/;
 const LIST_START = /^\s*(?:[-*+•]|\d+[.)])\s+/;
 const INLINE_NUMBER = /\s+(?=\d+\)\s)/;
+const BOLD = /\*\*(?=\S)|(?<=\S)\*\*/g;
 const SENTENCES = new Intl.Segmenter('en', { granularity: 'sentence' });
 const ABBREVIATION = /(?:^|[\s(["'])(?:(?:[a-z]\.){2,}|\d+\.|(?:eg|ie|vs|cf|viz|ex|approx|incl|excl|mr|mrs|ms|dr|prof)\.)$/i;
 // The segmenter knows no abbreviations or list numbers, so a piece that ends on one is joined to the next.
@@ -59,7 +60,7 @@ function isMeaningful(text, minWords) {
 }
 export function splitText(text, minWords = 3) {
     const units = [];
-    for (const paragraph of paragraphs(text)) {
+    for (const paragraph of paragraphs(text.replace(BOLD, ''))) {
         for (const numbered of paragraph.split(INLINE_NUMBER)) {
             for (const sentence of sentences(numbered)) {
                 const unit = sentence.trim();
