@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JevAsker } from '../src/jev.js';
-import { decide, pack, review, splitPlan, type Item } from '../src/review.js';
+import { decide, pack, pickFiles, review, splitPlan, type Item } from '../src/review.js';
 import { toStatements } from '../src/statements.js';
 import { estimateTokens } from '../src/tokens.js';
 import { fakeJev, type Seen } from './helpers.js';
@@ -355,5 +355,41 @@ describe('the reverse check', () => {
     const result = await review('- Add a Redis cache for sessions.', many, fakeJev({ asked: () => (call++ === 0 ? 0.9 : 0.1) }, seen), { reverse: true, maxPlanTokens: 200 });
     expect(seen.filter((entry) => entry.questions.includes('asked_p1')).length).toBeGreaterThan(1);
     expect(result.fromPlan?.items).toEqual([]);
+  });
+});
+
+describe('pickFiles', () => {
+  const doc = (label: string, text = 'The export must be CSV.') =>
+    ({ kind: 'document', text, label, mention: `Follow @${label}` }) as const;
+
+  it('uses a file Jev is sure the user gave as something to follow', async () => {
+    const picked = await pickFiles([doc('spec.md')], fakeJev({ file: () => 0.9 }), 0.8);
+    expect(picked.files).toEqual([{ label: 'spec.md', status: 'used', confidence: 0.9 }]);
+    expect(picked.requests).toBe(1);
+  });
+
+  it('sets a file aside below 50% and marks one in between as unsure', async () => {
+    const picked = await pickFiles(
+      [doc('README.md'), doc('notes.md')],
+      fakeJev({ file: (id) => (id === 'f1' ? 0.3 : 0.6) }),
+      0.8,
+    );
+    expect(picked.files.map((file) => file.status)).toEqual(['set_aside', 'unsure']);
+  });
+
+  it('asks nothing when no file was mentioned', async () => {
+    const seen: Seen[] = [];
+    const picked = await pickFiles([], fakeJev({}, seen), 0.8);
+    expect([picked.files, picked.requests, seen.length]).toEqual([[], 0, 0]);
+  });
+
+  it('shows Jev the mention and the start of the file', async () => {
+    const seen: Seen[] = [];
+    const text = 'a'.repeat(3000);
+    await pickFiles([doc('spec.md', text)], fakeJev({}, seen), 0.8);
+    expect((seen[0].state as { files: unknown[] }).files).toEqual([
+      { id: 'f1', name: 'spec.md', mentioned_in: 'Follow @spec.md', starts_with: text.slice(0, 2000) },
+    ]);
+    expect(seen[0].questions).toEqual(['file_f1']);
   });
 });

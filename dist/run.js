@@ -1,6 +1,6 @@
 import { PROVIDERS } from './config.js';
 import { jevClient } from './jev.js';
-import { review } from './review.js';
+import { pickFiles, review } from './review.js';
 import { toStatements } from './statements.js';
 import { collectSources, readTranscript } from './transcript.js';
 export async function runReview(input) {
@@ -19,19 +19,34 @@ export async function runReview(input) {
     if (!input.plan.trim())
         return { kind: 'skipped', reason: 'the plan is empty' };
     try {
-        const records = readTranscript(input.transcriptPath).slice(input.windowStart);
-        const { statements, skipped } = toStatements(collectSources(records), config.maxStatements);
+        const started = Date.now();
+        const sources = collectSources(readTranscript(input.transcriptPath).slice(input.windowStart));
+        const documents = sources.filter((source) => source.kind === 'document');
+        const picked = await pickFiles(documents, asker, config.minConfidence);
+        const used = new Set(picked.files.filter((file) => file.status === 'used').map((file) => file.label));
+        const kept = sources.filter((source) => source.kind !== 'document' || used.has(source.label ?? ''));
+        const { statements, skipped } = toStatements(kept, config.maxStatements);
         if (statements.length === 0) {
             return {
                 kind: 'skipped',
                 reason: 'the user has said nothing to check since the last approved plan or /clear',
             };
         }
-        const result = await review(input.plan, statements, asker, {
+        const reviewed = await review(input.plan, statements, asker, {
             minConfidence: config.minConfidence,
             reverse: input.reverse ?? false,
             maxPlanItems: config.maxStatements,
         });
+        const result = {
+            ...reviewed,
+            ...(picked.files.length ? { files: picked.files } : {}),
+            requests: reviewed.requests + picked.requests,
+            usage: {
+                inputTokens: reviewed.usage.inputTokens + picked.usage.inputTokens,
+                outputTokens: reviewed.usage.outputTokens + picked.usage.outputTokens,
+            },
+            elapsedMs: Date.now() - started,
+        };
         return { kind: 'reviewed', result, overLimit: skipped };
     }
     catch (error) {

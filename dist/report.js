@@ -29,6 +29,18 @@ export function summaryLine(result) {
     const unsure = result.verdicts.filter((verdict) => !verdict.conclusive).length;
     return `jev-plan-review: ${parts.join(', ')}${unsure ? ` (${unsure} unsure)` : ''}`;
 }
+const FILE_GROUPS = [
+    ['used', 'used'],
+    ['set_aside', 'set aside'],
+    ['unsure', 'unsure'],
+];
+function filesLine(result) {
+    const groups = FILE_GROUPS.flatMap(([status, name]) => {
+        const labels = (result.files ?? []).filter((file) => file.status === status).map((file) => file.label);
+        return labels.length ? [`${name} ${labels.join(', ')}`] : [];
+    });
+    return groups.length ? [`Files: ${groups.join('; ')}`] : [];
+}
 function rowsOf(result, showInconclusive) {
     const sure = sortVerdicts(result.verdicts)
         .filter((verdict) => showInconclusive || verdict.conclusive)
@@ -50,7 +62,7 @@ export function renderText(result, options = {}) {
     const pointer = options.reportPath ? `; full report: ${options.reportPath}` : '';
     const maxChars = options.maxChars ?? 9000;
     const { rows, hidden } = rowsOf(result, options.showInconclusive ?? true);
-    const lines = [summaryLine(result)];
+    const lines = [summaryLine(result), ...filesLine(result)];
     if (options.note)
         lines.push(options.note);
     if (hidden)
@@ -118,7 +130,7 @@ function fromPlanLines(fromPlan, showInconclusive) {
 }
 export function renderMarkdown(result, options = {}) {
     const { rows, hidden } = rowsOf(result, options.showInconclusive ?? true);
-    const lines = [summaryLine(result), ''];
+    const lines = [summaryLine(result), ...filesLine(result), ''];
     if (rows.length > 0) {
         lines.push('| # | Kind | What the user said | In the plan? | Confidence | Note |', '| --- | --- | --- | --- | --- | --- |');
         rows.forEach((row, index) => {
@@ -130,7 +142,7 @@ export function renderMarkdown(result, options = {}) {
     if (hidden)
         lines.push('', hidden);
     if (result.ignored > 0) {
-        lines.push('', `${result.ignored} statement(s) were set aside as questions, remarks, or things the user later reversed.`);
+        lines.push('', `${result.ignored} statement(s) were set aside as questions, remarks, things the user later reversed, or things about settings or tools.`);
     }
     if (result.reverseError) {
         lines.push('', '## In the plan, not from you', '', `The reverse check could not run: ${result.reverseError}`);

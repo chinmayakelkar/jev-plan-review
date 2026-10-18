@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Config } from '../src/config.js';
 import { runReview } from '../src/run.js';
-import { fakeJev, human, tempDir, writeTranscript } from './helpers.js';
+import { fakeJev, fileAttachment, human, tempDir, writeTranscript } from './helpers.js';
 
 function config(overrides: Partial<Config> = {}): Config {
   return {
@@ -143,5 +143,48 @@ describe('runReview', () => {
     expect(off.result.fromPlan).toBeUndefined();
     expect(on.result.fromPlan).toBeDefined();
     expect(capped.result.fromPlan?.overLimit).toBe(on.result.fromPlan!.checked - 1);
+  });
+});
+
+describe('runReview and mentioned files', () => {
+  const withFiles = () =>
+    writeTranscript([
+      human('Follow @spec.md and look at @README.md'),
+      fileAttachment('spec.md', 'The export must be CSV.'),
+      fileAttachment('README.md', 'This project prints reports.'),
+    ]);
+
+  it('checks only statements from files Jev accepts', async () => {
+    const outcome = await runReview({
+      plan: 'Export as CSV.',
+      transcriptPath: withFiles(),
+      windowStart: 0,
+      config: config(),
+      asker: fakeJev({ file: (id) => (id === 'f1' ? 0.95 : 0.1) }),
+    });
+    if (outcome.kind !== 'reviewed') throw new Error(outcome.reason);
+    const texts = outcome.result.verdicts.map((verdict) => verdict.text);
+    expect(texts).toContain('The export must be CSV.');
+    expect(texts).not.toContain('This project prints reports.');
+    expect(outcome.result.files).toEqual([
+      { label: 'spec.md', status: 'used', confidence: 0.95 },
+      { label: 'README.md', status: 'set_aside', confidence: 0.1 },
+    ]);
+  });
+
+  it('counts the file question as a request and leaves files out when none was mentioned', async () => {
+    const run = (transcriptPath: string) =>
+      runReview({
+        plan: 'Export as CSV.',
+        transcriptPath,
+        windowStart: 0,
+        config: config({ reverseCheck: false }),
+        asker: fakeJev({ file: () => 0.1 }),
+      });
+    const mentioned = await run(withFiles());
+    const plain = await run(writeTranscript([human('Follow @spec.md and look at @README.md')]));
+    if (mentioned.kind !== 'reviewed' || plain.kind !== 'reviewed') throw new Error('skipped');
+    expect(mentioned.result.requests).toBe(plain.result.requests + 1);
+    expect(plain.result.files).toBeUndefined();
   });
 });

@@ -1,7 +1,7 @@
 import { choiceAnswer, noulAnswer, type JevAsker, type JevQuestions } from './jev.js';
 import { splitText, type Statement } from './statements.js';
-import { abridge, estimateTokens, TOKEN_SCALE } from './tokens.js';
-import type { SourceKind } from './transcript.js';
+import { abridge, estimateTokens, TOKEN_SCALE, truncate } from './tokens.js';
+import type { Source, SourceKind } from './transcript.js';
 
 export const KINDS = ['requirement', 'constraint', 'decision', 'assumption', 'preference'] as const;
 export type Kind = (typeof KINDS)[number];
@@ -41,6 +41,11 @@ const PLAN_CLASSIFY_CONTEXT =
   'An implementation plan has been split into numbered items. `plan_items` lists some of them. Each question asks what kind of item one id is.';
 const REVERSE_CONTEXT =
   'An implementation plan is being checked for things the user never said. `turns` lists statements the user made, or one part of them when `turns_part` is present; `said_before_by_assistant` only explains what the user was replying to. `plan_items` lists items from the plan. Each question asks whether the user asked for or agreed to one plan item.';
+
+const FILES_CONTEXT =
+  'A user and a coding assistant are preparing an implementation plan. `files` lists files the user mentioned. `mentioned_in` is what the user wrote when mentioning the file and `starts_with` is the start of the file. Each question asks whether the user gave one file as something the plan must follow.';
+const FILE_MENTION_CHARS = 600;
+const FILE_START_CHARS = 2000;
 
 const CLASSIFY_CONTEXT_CHARS = [2000, 800, 300, 0] as const;
 const VERIFY_CONTEXT_CHARS = 800;
@@ -103,7 +108,16 @@ export interface FromPlan {
   overLimit: number;
 }
 
+export type FileStatus = 'used' | 'set_aside' | 'unsure';
+
+export interface FileVerdict {
+  label: string;
+  status: FileStatus;
+  confidence: number;
+}
+
 export interface ReviewResult {
+  files?: FileVerdict[];
   verdicts: Verdict[];
   unclear: Unclear[];
   statements: number;
@@ -216,6 +230,10 @@ function verifyQuestions(item: Item): JevQuestions {
       instructions: `The plan conflicts with statement ${item.id}: following the plan would go against what the user said`,
     },
   };
+}
+
+function countOf(value: unknown): number {
+  return typeof value === 'number' && value >= 0 ? value : 0;
 }
 
 function tokensOf(value: unknown): number {
@@ -429,6 +447,47 @@ export function decide(item: Item, score: Score, minConfidence: number): Verdict
   };
 }
 
+function fileQuestion(id: string): JevQuestions {
+  return {
+    [`file_${id}`]: {
+      type: 'noul',
+      instructions: `The user gave file ${id} as something the plan must follow, such as requirements, a spec or rules, not as background or code to look at`,
+    },
+  };
+}
+
+export async function pickFiles(
+  documents: readonly Source[],
+  asker: JevAsker,
+  minConfidence: number,
+): Promise<{ files: FileVerdict[]; requests: number; usage: { inputTokens: number; outputTokens: number } }> {
+  const usage = { inputTokens: 0, outputTokens: 0 };
+  const entries = documents.map((document, index) => ({
+    id: `f${index + 1}`,
+    name: document.label ?? '',
+    mentioned_in: truncate(document.mention ?? '', FILE_MENTION_CHARS),
+    starts_with: document.text.slice(0, FILE_START_CHARS),
+  }));
+  const budget =
+    DEFAULT_REVIEW_OPTIONS.maxRequestTokens - tokensOf({ context: FILES_CONTEXT, files: [] }) - REQUEST_OVERHEAD_TOKENS;
+  const batches = pack(entries, (entry) => tokensOf(entry) + tokensOf(fileQuestion(entry.id)), budget);
+  const answered = await Promise.all(
+    batches.map(async (batch) => {
+      const questions: JevQuestions = Object.assign({}, ...batch.map((entry) => fileQuestion(entry.id)));
+      const response = await asker.ask({ context: FILES_CONTEXT, files: batch }, questions);
+      usage.inputTokens += countOf(response.usage?.input_tokens);
+      usage.outputTokens += countOf(response.usage?.output_tokens);
+      return batch.map((entry) => ({ entry, chance: noulAnswer(response.answers, `file_${entry.id}`) }));
+    }),
+  );
+  const files = answered.flat().map(({ entry, chance }): FileVerdict => ({
+    label: entry.name,
+    status: chance >= minConfidence ? 'used' : chance < 0.5 ? 'set_aside' : 'unsure',
+    confidence: chance,
+  }));
+  return { files, requests: batches.length, usage };
+}
+
 export async function review(
   plan: string,
   statements: readonly Statement[],
@@ -439,13 +498,12 @@ export async function review(
   const started = Date.now();
   let requests = 0;
   const usage = { inputTokens: 0, outputTokens: 0 };
-  const count = (value: unknown): number => (typeof value === 'number' && value >= 0 ? value : 0);
   const counted: JevAsker = {
     async ask(state, questions) {
       requests += 1;
       const response = await asker.ask(state, questions);
-      usage.inputTokens += count(response.usage?.input_tokens);
-      usage.outputTokens += count(response.usage?.output_tokens);
+      usage.inputTokens += countOf(response.usage?.input_tokens);
+      usage.outputTokens += countOf(response.usage?.output_tokens);
       return response;
     },
   };

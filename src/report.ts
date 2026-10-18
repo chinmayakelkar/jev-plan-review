@@ -38,6 +38,20 @@ export function summaryLine(result: ReviewResult): string {
   return `jev-plan-review: ${parts.join(', ')}${unsure ? ` (${unsure} unsure)` : ''}`;
 }
 
+const FILE_GROUPS = [
+  ['used', 'used'],
+  ['set_aside', 'set aside'],
+  ['unsure', 'unsure'],
+] as const;
+
+function filesLine(result: ReviewResult): string[] {
+  const groups = FILE_GROUPS.flatMap(([status, name]) => {
+    const labels = (result.files ?? []).filter((file) => file.status === status).map((file) => file.label);
+    return labels.length ? [`${name} ${labels.join(', ')}`] : [];
+  });
+  return groups.length ? [`Files: ${groups.join('; ')}`] : [];
+}
+
 interface Row {
   answer: string;
   confidence: number;
@@ -72,7 +86,7 @@ export function renderText(
   const pointer = options.reportPath ? `; full report: ${options.reportPath}` : '';
   const maxChars = options.maxChars ?? 9000;
   const { rows, hidden } = rowsOf(result, options.showInconclusive ?? true);
-  const lines = [summaryLine(result)];
+  const lines = [summaryLine(result), ...filesLine(result)];
   if (options.note) lines.push(options.note);
   if (hidden) lines.push(hidden);
   else if (rows.length === 0) lines.push(NOTHING);
@@ -147,7 +161,7 @@ export function renderMarkdown(
   options: { showInconclusive?: boolean } = {},
 ): string {
   const { rows, hidden } = rowsOf(result, options.showInconclusive ?? true);
-  const lines = [summaryLine(result), ''];
+  const lines = [summaryLine(result), ...filesLine(result), ''];
   if (rows.length > 0) {
     lines.push(
       '| # | Kind | What the user said | In the plan? | Confidence | Note |',
@@ -163,7 +177,7 @@ export function renderMarkdown(
   if (result.ignored > 0) {
     lines.push(
       '',
-      `${result.ignored} statement(s) were set aside as questions, remarks, or things the user later reversed.`,
+      `${result.ignored} statement(s) were set aside as questions, remarks, things the user later reversed, or things about settings or tools.`,
     );
   }
   if (result.reverseError) {

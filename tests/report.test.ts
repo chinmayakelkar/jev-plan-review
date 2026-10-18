@@ -173,7 +173,7 @@ describe('renderMarkdown', () => {
     expect(markdown).toContain('| # | Kind | What the user said | In the plan? | Confidence | Note |');
     expect(markdown).toContain('| 1 | decision | Use Postgres \\| not SQLite | NO | 93% | contradicted |');
     expect(markdown).toContain('| 4 | requirement | Keep the README short | YES | 97% |  |');
-    expect(markdown).toContain('2 statement(s) were set aside');
+    expect(markdown).toContain('2 statement(s) were set aside as questions, remarks, things the user later reversed, or things about settings or tools.');
   });
 });
 
@@ -268,5 +268,28 @@ describe('renderMarkdown with a reverse check', () => {
 
   it('has no section without a reverse check', () => {
     expect(renderMarkdown(mixed)).not.toContain('In the plan, not from you');
+  });
+});
+
+describe('the files line', () => {
+  const files = {
+    ...resultOf([verdict({})]),
+    files: [
+      { label: 'spec.md', status: 'used', confidence: 0.9 },
+      { label: 'README.md', status: 'set_aside', confidence: 0.1 },
+      { label: 'notes.md', status: 'unsure', confidence: 0.6 },
+    ],
+  } satisfies ReviewResult;
+  const line = 'Files: used spec.md; set aside README.md; unsure notes.md';
+
+  it('comes right after the summary line', () => {
+    expect(renderMarkdown(files).split('\n')[1]).toBe(line);
+    expect(renderText(files).split('\n')[1]).toBe(line);
+  });
+
+  it('is left out when no file was asked about', () => {
+    const plain = resultOf([verdict({})]);
+    expect(renderMarkdown(plain)).not.toContain('Files:');
+    expect(renderText(plain)).not.toContain('Files:');
   });
 });
