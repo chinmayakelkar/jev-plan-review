@@ -77,8 +77,17 @@ function isMentioned(paths, mentioned) {
 export function latestPlanModePlan(records) {
     for (let index = records.length - 1; index >= 0; index -= 1) {
         const record = records[index];
+        if (record.isSidechain)
+            continue;
+        const attachment = record.attachment;
+        if (record.type === 'attachment' && attachment?.type === 'plan_mode' && !attachment.isSubAgent) {
+            const { planFilePath } = attachment;
+            if (typeof planFilePath === 'string' && existsSync(planFilePath))
+                return readFileSync(planFilePath, 'utf8');
+            continue;
+        }
         const content = record.message?.content;
-        if (record.isSidechain || record.type !== 'assistant' || !Array.isArray(content))
+        if (record.type !== 'assistant' || !Array.isArray(content))
             continue;
         for (let at = content.length - 1; at >= 0; at -= 1) {
             const block = content[at];

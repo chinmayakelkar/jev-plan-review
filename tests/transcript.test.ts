@@ -214,6 +214,38 @@ describe('latestPlanModePlan', () => {
     ])).toBe('Kept plan.');
   });
 
+  it('reads the plan file named in a plan_mode record when ExitPlanMode has no input', () => {
+    const file = join(tempDir(), 'plan.md');
+    writeFileSync(file, '# Plan A');
+    expect(latestPlanModePlan([
+      { type: 'attachment', attachment: { type: 'plan_mode', planFilePath: file } },
+      toolUse('t1', 'ExitPlanMode', {}),
+    ])).toBe('# Plan A');
+  });
+
+  it('prefers the newer ExitPlanMode plan over an older plan_mode record', () => {
+    const file = join(tempDir(), 'plan.md');
+    writeFileSync(file, '# Old');
+    expect(latestPlanModePlan([
+      { type: 'attachment', attachment: { type: 'plan_mode', planFilePath: file } },
+      toolUse('t1', 'ExitPlanMode', { plan: '# New' }),
+    ])).toBe('# New');
+  });
+
+  it('skips a plan_mode record whose file does not exist', () => {
+    expect(latestPlanModePlan([
+      { type: 'attachment', attachment: { type: 'plan_mode', planFilePath: join(tempDir(), 'gone.md') } },
+    ])).toBeUndefined();
+  });
+
+  it('ignores plan_mode records from subagents', () => {
+    const file = join(tempDir(), 'plan.md');
+    writeFileSync(file, '# Sub');
+    expect(latestPlanModePlan([
+      { type: 'attachment', attachment: { type: 'plan_mode', planFilePath: file, isSubAgent: true } },
+    ])).toBeUndefined();
+  });
+
   it('ignores plans made by subagents and finds nothing when there is none', () => {
     const sidechain = { ...toolUse('p1', 'ExitPlanMode', { plan: 'Subagent plan.' }), isSidechain: true };
     expect(latestPlanModePlan([sidechain])).toBeUndefined();

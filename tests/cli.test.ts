@@ -5,7 +5,7 @@ import { runCli } from '../src/cli.js';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from '../src/config.js';
 import { saveState } from '../src/session.js';
 import type { TranscriptRecord } from '../src/transcript.js';
-import { fakeJev, human, tempDir, toolUse, writeTranscript, type Seen } from './helpers.js';
+import { fakeJev, human, tempDir, toolResult, toolUse, writeTranscript, type Seen } from './helpers.js';
 
 function setup(
   records: readonly TranscriptRecord[] = [human('Use SQLite for the storage layer.'), human('Add a CSV export command too.')],
@@ -49,6 +49,20 @@ describe('runCli', () => {
     const { env, dataDir } = setup([
       human('Use SQLite for the storage layer.'),
       toolUse('p1', 'ExitPlanMode', { plan: 'Store data in SQLite.' }),
+    ]);
+    const { output } = await runCli(['--session', 'sess', '--data-dir', dataDir], env, fakeJev());
+    expect(output.split('\n')[0]).toBe('Plan checked: the latest plan-mode plan');
+    expect(output).toContain('1 of 1 items reflected');
+  });
+
+  it('finds a plan-mode plan the user pressed Esc on', async () => {
+    const planFile = join(tempDir(), 'plan.md');
+    writeFileSync(planFile, 'Store data in SQLite.');
+    const { env, dataDir } = setup([
+      human('Use SQLite for the storage layer.'),
+      { type: 'attachment', attachment: { type: 'plan_mode', planFilePath: planFile } },
+      toolUse('t1', 'ExitPlanMode', {}),
+      toolResult('t1', 'rejected', { isError: true, toolUseResult: 'User rejected tool use' }),
     ]);
     const { output } = await runCli(['--session', 'sess', '--data-dir', dataDir], env, fakeJev());
     expect(output.split('\n')[0]).toBe('Plan checked: the latest plan-mode plan');
