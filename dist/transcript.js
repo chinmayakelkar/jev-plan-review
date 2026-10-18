@@ -9,6 +9,7 @@ const COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/;
 const NOISE = /^(?:<local-command-|<bash-(?:input|stdout|stderr)>|<task-notification>|\[Request interrupted)/;
 const USER_SAID = /the user said:\s*/i;
 const INSTRUCTION_FILE = /(?:^|\/)claude(?:\.local)?\.md$/;
+const PROSE_FILE = /\.(?:md|markdown|txt|rst|adoc)$/i;
 const MENTION = /(?:^|\s)@(?:"([^"]+)"|(\S+))/g;
 export function readTranscript(path) {
     if (!existsSync(path))
@@ -60,15 +61,13 @@ function answerSources(result) {
     }
     return sources;
 }
-function mentionedPaths(prompts) {
+function mentionedPaths(prompt) {
     const found = [];
-    for (const prompt of prompts) {
-        for (const match of prompt.matchAll(MENTION)) {
-            const raw = match[1] ?? (match[2] ?? '').replace(/[.,;:!?)"]+$/, '');
-            const path = normalise(raw).replace(/^\.\//, '');
-            if (path)
-                found.push(path);
-        }
+    for (const match of prompt.matchAll(MENTION)) {
+        const raw = match[1] ?? (match[2] ?? '').replace(/[.,;:!?)"]+$/, '');
+        const path = normalise(raw).replace(/^\.\//, '');
+        if (path)
+            found.push(path);
     }
     return found;
 }
@@ -83,8 +82,9 @@ export function latestPlanModePlan(records) {
         const attachment = record.attachment;
         if (record.type === 'attachment' && attachment?.type === 'plan_mode' && !attachment.isSubAgent) {
             const { planFilePath } = attachment;
-            if (typeof planFilePath === 'string' && existsSync(planFilePath))
+            if (typeof planFilePath === 'string' && existsSync(planFilePath)) {
                 return readFileSync(planFilePath, 'utf8');
+            }
             continue;
         }
         const content = record.message?.content;
@@ -95,8 +95,9 @@ export function latestPlanModePlan(records) {
             if (block.type !== 'tool_use' || block.name !== 'ExitPlanMode')
                 continue;
             const { plan, planFilePath } = block.input ?? {};
-            if (typeof planFilePath === 'string' && existsSync(planFilePath))
+            if (typeof planFilePath === 'string' && existsSync(planFilePath)) {
                 return readFileSync(planFilePath, 'utf8');
+            }
             if (typeof plan === 'string' && plan.trim())
                 return plan;
         }
@@ -105,7 +106,7 @@ export function latestPlanModePlan(records) {
 }
 export function collectSources(records) {
     const sources = [];
-    const documents = [];
+    const documents = new Map();
     const toolNames = new Map();
     let lastAssistant = '';
     let command;
@@ -119,7 +120,7 @@ export function collectSources(records) {
                 return;
             text = (COMMAND_ARGS.exec(text)?.[1] ?? '').trim();
         }
-        else if (text && !NOISE.test(text)) {
+        else if (!NOISE.test(text)) {
             command = undefined;
             ownCommand = false;
         }
@@ -159,11 +160,9 @@ export function collectSources(records) {
             }
             for (const block of results) {
                 const tool = toolNames.get(block.tool_use_id ?? '');
-                if (tool === 'AskUserQuestion') {
-                    if (!ownCommand) {
-                        for (const answer of answerSources(record.toolUseResult)) {
-                            sources.push(command ? { ...answer, command } : answer);
-                        }
+                if (tool === 'AskUserQuestion' && !ownCommand) {
+                    for (const answer of answerSources(record.toolUseResult)) {
+                        sources.push(command ? { ...answer, command } : answer);
                     }
                 }
                 else if (tool === 'ExitPlanMode' && block.is_error) {
@@ -188,8 +187,9 @@ export function collectSources(records) {
                 attachment.filename &&
                 attachment.content?.type === 'text' &&
                 typeof attachment.content.file?.content === 'string' &&
+                PROSE_FILE.test(attachment.filename) &&
                 !INSTRUCTION_FILE.test(normalise(attachment.filename))) {
-                documents.push({
+                documents.set(normalise(attachment.filename), {
                     path: attachment.filename,
                     ...(attachment.displayPath ? { displayPath: attachment.displayPath } : {}),
                     text: attachment.content.file.content,
@@ -197,14 +197,16 @@ export function collectSources(records) {
             }
         }
     }
-    const mentioned = mentionedPaths(sources.filter((source) => source.kind === 'prompt').map((source) => source.text));
-    for (const document of documents) {
+    const prompts = sources.filter((source) => source.kind === 'prompt').map((source) => source.text);
+    for (const document of documents.values()) {
         const paths = [document.path, document.displayPath ?? ''].filter(Boolean).map(normalise);
-        if (isMentioned(paths, mentioned)) {
+        const mention = prompts.find((prompt) => isMentioned(paths, mentionedPaths(prompt)));
+        if (mention !== undefined) {
             sources.push({
                 kind: 'document',
                 text: document.text,
                 label: document.displayPath ?? document.path,
+                mention,
             });
         }
     }

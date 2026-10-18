@@ -171,9 +171,52 @@ describe('collectSources', () => {
       fileAttachment('D:\\proj\\src\\other.ts', 'Not mentioned.'),
     ]);
     expect(sources.filter((source) => source.kind === 'document')).toEqual([
-      { kind: 'document', text: 'Spec text.', label: 'docs\\spec.md' },
-      { kind: 'document', text: 'Todo text.', label: 'D:\\proj\\my notes\\todo.md' },
+      { kind: 'document', text: 'Spec text.', label: 'docs\\spec.md', mention: 'Follow @docs/spec.md and @"my notes/todo.md", please.' },
+      { kind: 'document', text: 'Todo text.', label: 'D:\\proj\\my notes\\todo.md', mention: 'Follow @docs/spec.md and @"my notes/todo.md", please.' },
     ]);
+  });
+
+  it('counts only prose files mentioned with @', () => {
+    const sources = collectSources([
+      human('Follow @docs/spec.md, see @src/app.ts and @notes.TXT'),
+      fileAttachment('docs/spec.md', 'Spec text.'),
+      fileAttachment('src/app.ts', 'const x = 1;'),
+      fileAttachment('notes.TXT', 'Note text.'),
+    ]);
+    expect(sources.filter((source) => source.kind === 'document').map((source) => source.label)).toEqual([
+      'docs/spec.md',
+      'notes.TXT',
+    ]);
+  });
+
+  it('keeps the words that mentioned a file', () => {
+    const sources = collectSources([
+      human('Plan the export.'),
+      human('Follow @spec.md for the rules.'),
+      fileAttachment('spec.md', 'Spec text.'),
+    ]);
+    expect(sources.find((source) => source.kind === 'document')?.mention).toBe('Follow @spec.md for the rules.');
+  });
+
+  it('keeps one source per file, with its newest content', () => {
+    const sources = collectSources([
+      human('Follow @spec.md'),
+      fileAttachment('spec.md', 'Old.'),
+      human('I updated @spec.md'),
+      fileAttachment('spec.md', 'New.'),
+    ]);
+    const documents = sources.filter((source) => source.kind === 'document');
+    expect(documents.map((source) => [source.text, source.mention])).toEqual([['New.', 'Follow @spec.md']]);
+  });
+
+  it('ends a command when the user sends an image alone', () => {
+    const sources = collectSources([
+      human('<command-message>foo</command-message>\n<command-name>/foo</command-name>\n<command-args></command-args>'),
+      { type: 'user', origin: { kind: 'human' }, message: { content: [{ type: 'image' }] } },
+      toolUse('q1', 'AskUserQuestion'),
+      toolResult('q1', 'answered', { toolUseResult: { answers: { 'Which store?': 'SQLite' } } }),
+    ]);
+    expect(sources.find((source) => source.kind === 'answer')?.command).toBeUndefined();
   });
 
   it('never counts CLAUDE.md, even when mentioned', () => {
