@@ -22,13 +22,13 @@ export interface Score {
 }
 
 export function outcomeOfReview(result: ReviewResult, statements: Statement[]): Outcome {
-  const verdicts = new Map(result.verdicts.map((verdict) => [verdict.id, verdict]));
-  const unclear = new Set(result.unclear.map((statement) => statement.id));
+  const verdicts = new Map(result.verdicts.map((verdict) => [verdict.text, verdict]));
+  const unclear = new Set(result.unclear.map((statement) => statement.text));
   return {
-    statements: statements.map(({ id, text }) => {
-      const verdict = verdicts.get(id);
+    statements: statements.map(({ text }) => {
+      const verdict = verdicts.get(text);
       if (verdict) return { text, actual: verdict.status, conclusive: verdict.conclusive };
-      return unclear.has(id) ? { text, actual: 'unclear', conclusive: false } : { text, actual: 'set_aside', conclusive: true };
+      return unclear.has(text) ? { text, actual: 'unclear', conclusive: false } : { text, actual: 'set_aside', conclusive: true };
     }),
     flagged: (result.fromPlan?.items ?? []).map(({ text, conclusive }) => ({ text, conclusive })),
   };

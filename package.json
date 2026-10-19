@@ -14,7 +14,8 @@
     "test": "vitest run",
     "verify": "npm run typecheck && npm test && npm run build",
     "validate:plugin": "claude plugin validate . && claude plugin validate .claude-plugin/plugin.json",
-    "live": "tsx examples/live.ts"
+    "live": "tsx examples/live.ts",
+    "bench": "tsx examples/bench/run.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

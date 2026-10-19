@@ -1,10 +1,14 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { judgePrompt, outcomeOfClaude } from '../examples/bench/claude.js';
+import { judgePrompt, outcomeOfClaude, type ClaudeRunner } from '../examples/bench/claude.js';
+import { bench } from '../examples/bench/run.js';
 import { buildTranscript, type Scenario } from '../examples/bench/scenario.js';
 import { outcomeOfReview, score, type Outcome } from '../examples/bench/score.js';
 import type { ReviewResult } from '../src/review.js';
 import type { Statement } from '../src/statements.js';
 import { collectSources, readTranscript } from '../src/transcript.js';
+import { fakeJev, tempDir } from './helpers.js';
 
 const statement = (id: string, text: string): Statement => ({ id, source: 'prompt', text, turn: 0 });
 
@@ -159,5 +163,30 @@ describe('sonnet baseline', () => {
     const outcome = outcomeOfClaude('Sorry, I cannot help.', statements, items);
     expect(outcome.statements.map((s) => s.actual)).toEqual(['unclear', 'unclear', 'unclear']);
     expect(outcome.flagged).toEqual([]);
+  });
+});
+
+describe('benchmark runner', () => {
+  it('writes a summary for each system', async () => {
+    const scenario: Scenario = {
+      name: 'tiny',
+      about: 'one requirement',
+      turns: [{ user: 'Export the report to CSV.' }],
+      plan: '- Write a CSV exporter for the report.',
+      expect: { statements: [{ text: 'Export the report to CSV.', verdict: 'reflected' }] },
+    };
+    const claude: ClaudeRunner = async () => ({
+      text: JSON.stringify({ statements: { s1: { kind: 'requirement', verdict: 'reflected', confidence: 90 } } }),
+      ms: 1000,
+      inputTokens: 10,
+      outputTokens: 5,
+      costUsd: 0.01,
+    });
+    const summary = await bench({ scenarios: [scenario], runs: 2, asker: fakeJev(), claude, out: tempDir() });
+    const text = readFileSync(summary, 'utf8');
+    expect(text).toContain('tiny');
+    expect(text).toMatch(/\| tiny \| jev \|/);
+    expect(text).toMatch(/\| tiny \| sonnet \|/);
+    expect(existsSync(join(dirname(summary), 'tiny-jev-1.md'))).toBe(true);
   });
 });
