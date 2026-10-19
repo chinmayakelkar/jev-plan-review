@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DEFAULT_MODEL, SYSTEM_ONE_URL } from './jev.js';
+import { SYSTEM_ONE_URL } from './jev.js';
 export const PROVIDERS = {
     typesafe: { label: 'TypeSafe', url: SYSTEM_ONE_URL, keyVar: 'TYPESAFE_API_KEY' },
     openrouter: {
@@ -18,7 +18,6 @@ export const DEFAULT_SETTINGS = {
     max_statements: 150,
     show_inconclusive: true,
     reverse_plan_check: true,
-    model: DEFAULT_MODEL,
 };
 export function given(value) {
     if (typeof value !== 'string')
@@ -33,9 +32,12 @@ function toggle(key, value) {
         return false;
     throw new Error(`${key} must be on or off`);
 }
+function wholeNumber(value, most) {
+    const count = Number(value || NaN);
+    return Number.isInteger(count) && count >= 1 && count <= most ? count : undefined;
+}
 export function withSetting(settings, key, raw) {
-    const text = String(raw).trim();
-    const value = text.toLowerCase();
+    const value = String(raw).trim().toLowerCase();
     switch (key) {
         case 'provider':
             if (value !== 'typesafe' && value !== 'openrouter') {
@@ -53,18 +55,18 @@ export function withSetting(settings, key, raw) {
         case 'show_inconclusive':
         case 'reverse_plan_check':
             return { ...settings, [key]: toggle(key, value) };
-        case 'max_revisions':
-        case 'max_statements': {
-            const count = Number(value || NaN);
-            if (!(Number.isInteger(count) && count >= 1)) {
-                throw new Error(`${key} must be a whole number, 1 or more`);
-            }
-            return { ...settings, [key]: count };
+        case 'max_revisions': {
+            const count = wholeNumber(value, 5);
+            if (count === undefined)
+                throw new Error('max_revisions must be a whole number from 1 to 5');
+            return { ...settings, max_revisions: count };
         }
-        case 'model':
-            if (!text)
-                throw new Error('model must not be empty');
-            return { ...settings, model: text };
+        case 'max_statements': {
+            const count = wholeNumber(value, Infinity);
+            if (count === undefined)
+                throw new Error('max_statements must be a whole number, 1 or more');
+            return { ...settings, max_statements: count };
+        }
         default:
             throw new Error(`unknown setting ${key}; the settings are ${Object.keys(DEFAULT_SETTINGS).join(', ')}`);
     }
@@ -120,7 +122,6 @@ export function resolveConfig(env, settingsEnv = {}, dataDir) {
         ...(apiKey ? { apiKey } : {}),
         provider: settings.provider,
         baseUrl: url,
-        model: settings.model,
         minConfidence: settings.min_confidence / 100,
         autoReview: settings.auto_review,
         maxRevisions: settings.max_revisions,

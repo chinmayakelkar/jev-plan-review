@@ -22,7 +22,7 @@ export async function runReview(input: RunInput): Promise<RunOutcome> {
   const asker =
     input.asker ??
     (config.apiKey
-      ? jevClient({ apiKey: config.apiKey, model: config.model, baseUrl: config.baseUrl })
+      ? jevClient({ apiKey: config.apiKey, baseUrl: config.baseUrl })
       : undefined);
   if (!asker) {
     const { label, keyVar } = PROVIDERS[config.provider];

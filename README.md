@@ -146,11 +146,10 @@ Change the settings in `/config`, where each one has its own row.
 | `provider` | `typesafe` | `typesafe` or `openrouter`. Decides where requests go and which key is used. |
 | `min_confidence` | `80` | Percent, 50–100. An answer below this is marked `unsure` and is never sent back to Claude. |
 | `auto_review` | `on` | Review every plan-mode plan before it is shown, and send it back to Claude when needed. When off, only the review command runs a check. |
-| `max_revisions` | `2` | How many times one plan may be sent back. Any whole number from 1 up. |
+| `max_revisions` | `2` | How many times one plan may be sent back, from 1 to 5. |
 | `max_statements` | `150` | How many statements one review may check. Any whole number from 1 up. More statements mean more Jev questions and a longer wait. |
 | `show_inconclusive` | `on` | Show the rows Jev was unsure of: `unsure` answers and `not checked` statements. When off they are left out of the table and the saved report, and one line says how many were hidden. |
 | `reverse_plan_check` | `on` | In the command, also list what the plan decided that you never said. When off, the command checks only that the plan reflects what you said. |
-| `model` | `jev-latest` | Jev model name. |
 
 A change takes effect for the next review. If a value can't be used, the
 plugin says so, names the setting, and uses its default.

@@ -8,7 +8,6 @@ function config(overrides: Partial<Config> = {}): Config {
     apiKey: 'k',
     provider: 'typesafe',
     baseUrl: 'https://jev.invalid/systemone',
-    model: 'jev-latest',
     minConfidence: 0.8,
     autoReview: true,
     maxRevisions: 2,
@@ -80,7 +79,7 @@ describe('runReview', () => {
     });
   });
 
-  it('sends requests to the chosen provider with its key and model', async () => {
+  it('sends requests to the chosen provider with its key and the latest model', async () => {
     const calls: { url: string; init: RequestInit }[] = [];
     vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) => {
       calls.push({ url: String(url), init: init ?? {} });
@@ -91,7 +90,7 @@ describe('runReview', () => {
         plan: 'A plan.',
         transcriptPath: transcript(),
         windowStart: 0,
-        config: config({ apiKey: 'or-key', baseUrl: 'https://openrouter.ai/api/v1/systemone', model: 'jev-1.13' }),
+        config: config({ apiKey: 'or-key', baseUrl: 'https://openrouter.ai/api/v1/systemone' }),
       });
       expect(outcome).toEqual({ kind: 'skipped', reason: 'Jev request failed (503): busy' });
     } finally {
@@ -99,7 +98,7 @@ describe('runReview', () => {
     }
     expect(calls[0].url).toBe('https://openrouter.ai/api/v1/systemone');
     expect((calls[0].init.headers as Record<string, string>).authorization).toBe('Bearer or-key');
-    expect(JSON.parse(String(calls[0].init.body)).model).toBe('jev-1.13');
+    expect(JSON.parse(String(calls[0].init.body)).model).toBe('jev-latest');
   });
 
   it('skips an empty plan and an empty window', async () => {

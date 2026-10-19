@@ -31,7 +31,6 @@ describe('readOptions', () => {
       max_statements: 150,
       show_inconclusive: true,
       reverse_plan_check: true,
-      model: 'jev-latest',
     });
   });
 
@@ -56,7 +55,7 @@ describe('readOptions', () => {
   });
 
   it('treats an unsubstituted placeholder as not given', () => {
-    expect(readOptions({ CLAUDE_PLUGIN_OPTION_MODEL: '${user_config.model}' })).toEqual({
+    expect(readOptions({ CLAUDE_PLUGIN_OPTION_PROVIDER: '${user_config.provider}' })).toEqual({
       settings: DEFAULT_SETTINGS,
       problems: [],
     });
@@ -69,7 +68,6 @@ describe('withSetting', () => {
     expect(withSetting(DEFAULT_SETTINGS, 'auto_review', 'no').auto_review).toBe(false);
     expect(withSetting(DEFAULT_SETTINGS, 'min_confidence', '90%').min_confidence).toBe(90);
     expect(withSetting(DEFAULT_SETTINGS, 'provider', 'OpenRouter').provider).toBe('openrouter');
-    expect(withSetting(DEFAULT_SETTINGS, 'model', ' jev-1.13 ').model).toBe('jev-1.13');
     expect(() => withSetting(DEFAULT_SETTINGS, 'min_confidence', '49')).toThrow(
       'min_confidence must be a number from 50 to 100',
     );
@@ -82,10 +80,10 @@ describe('withSetting', () => {
     expect(() => withSetting(DEFAULT_SETTINGS, 'provider', 'azure')).toThrow(
       'provider must be typesafe or openrouter',
     );
-    expect(withSetting(DEFAULT_SETTINGS, 'max_revisions', '25').max_revisions).toBe(25);
-    for (const bad of ['0', '2.5', 'many', '']) {
+    expect(withSetting(DEFAULT_SETTINGS, 'max_revisions', '5').max_revisions).toBe(5);
+    for (const bad of ['0', '6', '2.5', 'many', '']) {
       expect(() => withSetting(DEFAULT_SETTINGS, 'max_revisions', bad)).toThrow(
-        'max_revisions must be a whole number, 1 or more',
+        'max_revisions must be a whole number from 1 to 5',
       );
     }
     expect(withSetting(DEFAULT_SETTINGS, 'max_statements', '400').max_statements).toBe(400);
@@ -97,7 +95,7 @@ describe('withSetting', () => {
     expect(() => withSetting(DEFAULT_SETTINGS, 'reverse_plan_check', 'maybe')).toThrow(
       'reverse_plan_check must be on or off',
     );
-    expect(() => withSetting(DEFAULT_SETTINGS, 'model', ' ')).toThrow('model must not be empty');
+    expect(() => withSetting(DEFAULT_SETTINGS, 'model', 'jev-1.13')).toThrow('unknown setting model');
     expect(() => withSetting(DEFAULT_SETTINGS, 'colour', 'blue')).toThrow('unknown setting colour');
   });
 });
@@ -108,7 +106,6 @@ describe('resolveConfig', () => {
     expect(resolveConfig({}, {}, dir)).toEqual({
       provider: 'typesafe',
       baseUrl: 'https://api.typesafe.ai/v1/systemone',
-      model: 'jev-latest',
       minConfidence: 0.8,
       autoReview: true,
       maxRevisions: 2,
@@ -156,7 +153,7 @@ describe('resolveConfig with a plugin option it cannot use', () => {
   it('uses the default and names what was wrong', () => {
     const options = readOptions({ CLAUDE_PLUGIN_OPTION_MAX_REVISIONS: '2.5' });
     expect(options.settings.max_revisions).toBe(2);
-    expect(options.problems).toEqual(['max_revisions must be a whole number, 1 or more; used 2']);
+    expect(options.problems).toEqual(['max_revisions must be a whole number from 1 to 5; used 2']);
     expect(readOptions({ CLAUDE_PLUGIN_OPTION_AUTO_REVIEW: 'maybe' }).problems).toEqual([
       'auto_review must be on or off; used on',
     ]);

@@ -159,7 +159,7 @@ describe('runCli', () => {
     );
     expect(code).toBe(1);
     expect(output).toBe(
-      'unknown option colour; the options are provider, min_confidence, auto_review, max_revisions, max_statements, show_inconclusive, reverse_plan_check, model',
+      'unknown option colour; the options are provider, min_confidence, auto_review, max_revisions, max_statements, show_inconclusive, reverse_plan_check',
     );
   });
 
@@ -176,7 +176,7 @@ describe('runCli', () => {
     const args = ['--session', 'sess', '--data-dir', dataDir, '--plan', plan, '--option', 'max_revisions=2.5'];
     const { output } = await runCli(args, env, fakeJev());
     expect(output.split('\n')[1]).toBe(
-      'jev-plan-review: max_revisions must be a whole number, 1 or more; used 2; fix it in /config.',
+      'jev-plan-review: max_revisions must be a whole number from 1 to 5; used 2; fix it in /config.',
     );
   });
 

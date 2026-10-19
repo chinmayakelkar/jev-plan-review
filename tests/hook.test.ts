@@ -22,7 +22,6 @@ function config(overrides: Partial<Config> = {}): Config {
     apiKey: 'k',
     provider: 'typesafe',
     baseUrl: 'https://jev.invalid/systemone',
-    model: 'jev-latest',
     minConfidence: 0.8,
     autoReview: true,
     maxRevisions: 2,
