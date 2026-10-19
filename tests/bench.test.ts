@@ -3,14 +3,14 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { longScenario } from '../examples/bench/long.js';
-import { judgePrompt, outcomeOfClaude, type ClaudeRunner } from '../examples/bench/claude.js';
-import { bench } from '../examples/bench/run.js';
+import { judgePrompt, outcomeOfClaude, readClaudeOutput, runClaude, type ClaudeRunner } from '../examples/bench/claude.js';
+import { bench, scale } from '../examples/bench/run.js';
 import { buildTranscript, loadScenarios, type Scenario } from '../examples/bench/scenario.js';
 import { outcomeOfReview, score, type Outcome } from '../examples/bench/score.js';
 import { planItems, type ReviewResult } from '../src/review.js';
 import { toStatements, type Statement } from '../src/statements.js';
 import { collectSources, readTranscript } from '../src/transcript.js';
-import { fakeJev, tempDir } from './helpers.js';
+import { fakeJev, tempDir, type Seen } from './helpers.js';
 
 const SCENARIOS = join(dirname(fileURLToPath(import.meta.url)), '..', 'examples', 'bench', 'scenarios');
 const statement = (id: string, text: string): Statement => ({ id, source: 'prompt', text, turn: 0 });
@@ -218,5 +218,70 @@ describe('benchmark answer keys', () => {
   it('long scenarios are stable', () => {
     expect(longScenario(150)).toEqual(longScenario(150));
     expect(longScenario(150).expect.statements).toHaveLength(150);
+  });
+});
+
+describe('benchmark failures and fairness', () => {
+  const tiny: Scenario = {
+    name: 'tiny',
+    about: 'one requirement',
+    turns: [{ user: 'Export the report to CSV.' }],
+    plan: '- Write a CSV exporter for the report.',
+    expect: { statements: [{ text: 'Export the report to CSV.', verdict: 'reflected' }], notFromUser: ['CSV exporter'] },
+  };
+  const reply = 'Here you go: ' + JSON.stringify({ statements: { s1: { kind: 'requirement', verdict: 'reflected', confidence: 90 } } });
+  const claude: ClaudeRunner = async () => ({ text: reply, ms: 1, inputTokens: 1, outputTokens: 1, costUsd: 0 });
+
+  it('records a failed reverse check as a failed run', async () => {
+    const jev = fakeJev();
+    const asker = {
+      ask: (state: unknown, questions: Record<string, unknown>) =>
+        Object.keys(questions).some((name) => name.startsWith('asked_'))
+          ? Promise.reject(new Error('reverse broke'))
+          : jev.ask(state as object, questions as never),
+    };
+    const summary = await bench({ scenarios: [tiny], runs: 1, asker, claude, out: tempDir() });
+    expect(readFileSync(summary, 'utf8')).toMatch(/tiny, jev, run 1: .*reverse broke/);
+  });
+
+  it("saves Sonnet's raw reply with the run", async () => {
+    const summary = await bench({ scenarios: [tiny], runs: 1, asker: fakeJev(), claude, out: tempDir() });
+    expect(readFileSync(join(dirname(summary), 'tiny-sonnet-1.md'), 'utf8')).toContain(reply);
+  });
+
+  it('times the scale run without the reverse check, as the hook runs it', async () => {
+    const seen: Seen[] = [];
+    await scale({ sizes: [10], runs: 1, asker: fakeJev({}, seen), out: tempDir() });
+    expect(seen.flatMap((s) => s.questions).some((name) => name.startsWith('asked_'))).toBe(false);
+  });
+
+  it('tells Sonnet that a background file is not rules to follow', () => {
+    expect(judgePrompt([], [], '')).toContain('A file the user gave only as background is not rules to follow');
+  });
+
+  it('treats a reply of the wrong shape as unsure', () => {
+    const outcome = outcomeOfClaude('{"statements": [1, 2]}', [statement('s1', 'Use Go.')], []);
+    expect(outcome.statements).toEqual([{ text: 'Use Go.', actual: 'unclear', conclusive: false }]);
+  });
+
+  it('counts cached input tokens', () => {
+    const out = JSON.stringify({
+      result: 'ok',
+      duration_ms: 5,
+      usage: { input_tokens: 3, cache_creation_input_tokens: 100, cache_read_input_tokens: 20, output_tokens: 7 },
+      total_cost_usd: 0.5,
+    });
+    expect(readClaudeOutput(out)).toEqual({ text: 'ok', ms: 5, inputTokens: 123, outputTokens: 7, costUsd: 0.5 });
+  });
+
+  it('rejects instead of crashing when claude exits before reading the prompt', async () => {
+    const previous = process.env.CLAUDE_BIN;
+    process.env.CLAUDE_BIN = process.execPath;
+    try {
+      await expect(runClaude('x'.repeat(5_000_000))).rejects.toThrow();
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_BIN;
+      else process.env.CLAUDE_BIN = previous;
+    }
   });
 });

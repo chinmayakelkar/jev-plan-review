@@ -36,6 +36,8 @@ const SET_ASIDE = new Set(['superseded', 'not_actionable', 'about_tools']);
 const CONTEXT_CHARS = 800;
 const THRESHOLD = 80;
 
+const TIMEOUT_MS = 300_000;
+
 const JUDGE_SYSTEM =
   'You check an implementation plan against what the user said while it was prepared. Answer only from the input you are given. Reply with one JSON object only.';
 
@@ -49,35 +51,46 @@ export const runClaude: ClaudeRunner = (prompt) =>
   new Promise((resolve, reject) => {
     const args = ['-p', '--model', 'sonnet', '--output-format', 'json', '--tools', '', '--setting-sources', '',
       '--disable-slash-commands', '--no-session-persistence', '--system-prompt', JUDGE_SYSTEM];
-    const child = spawn(claudeBin(), args, { cwd: tempDir(), stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(claudeBin(), args, { cwd: tempDir(), stdio: ['pipe', 'pipe', 'pipe'], timeout: TIMEOUT_MS });
     let out = '';
     let err = '';
     child.stdout.on('data', (chunk) => (out += chunk));
     child.stderr.on('data', (chunk) => (err += chunk));
     child.on('error', reject);
+    child.stdin.on('error', () => {});
     child.on('close', (code) => {
       try {
-        const reply = JSON.parse(out) as {
-          result?: string;
-          is_error?: boolean;
-          duration_ms?: number;
-          usage?: { input_tokens?: number; output_tokens?: number };
-          total_cost_usd?: number;
-        };
-        if (reply.is_error) throw new Error(reply.result ?? 'claude reported an error');
-        resolve({
-          text: reply.result ?? '',
-          ms: reply.duration_ms ?? 0,
-          inputTokens: reply.usage?.input_tokens ?? 0,
-          outputTokens: reply.usage?.output_tokens ?? 0,
-          costUsd: reply.total_cost_usd ?? 0,
-        });
+        resolve(readClaudeOutput(out));
       } catch (error) {
         reject(new Error(`claude exited ${code}: ${(error as Error).message} ${err.slice(0, 300)}`.trim()));
       }
     });
     child.stdin.end(prompt);
   });
+
+export function readClaudeOutput(out: string): Awaited<ReturnType<ClaudeRunner>> {
+  const reply = JSON.parse(out) as {
+    result?: string;
+    is_error?: boolean;
+    duration_ms?: number;
+    usage?: {
+      input_tokens?: number;
+      cache_creation_input_tokens?: number;
+      cache_read_input_tokens?: number;
+      output_tokens?: number;
+    };
+    total_cost_usd?: number;
+  };
+  if (reply.is_error) throw new Error(reply.result ?? 'claude reported an error');
+  const usage = reply.usage ?? {};
+  return {
+    text: reply.result ?? '',
+    ms: reply.duration_ms ?? 0,
+    inputTokens: (usage.input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
+    outputTokens: usage.output_tokens ?? 0,
+    costUsd: reply.total_cost_usd ?? 0,
+  };
+}
 
 function turnsOf(statements: readonly Statement[]): object[] {
   const turns = new Map<number, Record<string, unknown> & { statements: object[] }>();
@@ -101,7 +114,7 @@ function turnsOf(statements: readonly Statement[]): object[] {
 export function judgePrompt(statements: Statement[], items: PlanItem[], plan: string): string {
   const input = { turns: turnsOf(statements), plan, plan_items: items };
   return [
-    'A user and a coding assistant prepared an implementation plan. `turns` lists, oldest first, what the user said, split into numbered statements. `said_before_by_assistant` only explains what the user was replying to; it is never a statement. A turn with `from_document` holds rules from a file the user gave as something the plan must follow; those count as the user\'s own. `plan_items` lists items from the plan.',
+    'A user and a coding assistant prepared an implementation plan. `turns` lists, oldest first, what the user said, split into numbered statements. `said_before_by_assistant` only explains what the user was replying to; it is never a statement. A turn with `from_document` holds the text of a file the user mentioned. A file the user gave as something the plan must follow holds rules that count as the user\'s own. A file the user gave only as background is not rules to follow; its statements are not_actionable. `plan_items` lists items from the plan.',
     '',
     'For each statement id:',
     `- kind: one of ${Object.entries(CRITERIA).map(([name, text]) => `${name} (${text})`).join('; ')}. Judge it as the user meant it.`,
@@ -126,13 +139,17 @@ interface Reply {
   plan_items?: Record<string, { from_user?: boolean; confidence?: number }>;
 }
 
+const isRecord = (value: unknown): boolean => value !== null && typeof value === 'object' && !Array.isArray(value);
+
 function parse(text: string): Reply | undefined {
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
   if (start < 0 || end < start) return undefined;
   try {
-    const parsed: unknown = JSON.parse(text.slice(start, end + 1));
-    return parsed !== null && typeof parsed === 'object' ? (parsed as Reply) : undefined;
+    const parsed = JSON.parse(text.slice(start, end + 1)) as Reply;
+    return isRecord(parsed) && [parsed.statements, parsed.plan_items].every((part) => part === undefined || isRecord(part))
+      ? parsed
+      : undefined;
   } catch {
     return undefined;
   }

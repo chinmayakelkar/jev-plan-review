@@ -22,6 +22,7 @@ interface Run {
   score?: Score;
   outcome?: Outcome;
   failed?: string;
+  raw?: string;
   seconds: number;
   requests?: number;
   inputTokens: number;
@@ -39,13 +40,20 @@ function loadConfig(maxStatements?: number): Config {
   return maxStatements ? { ...config, maxStatements } : config;
 }
 
-async function runJev(scenario: Scenario, path: string, config: Config, run: number, asker?: JevAsker): Promise<Run> {
+async function runJev(
+  scenario: Scenario,
+  path: string,
+  config: Config,
+  run: number,
+  reverse: boolean,
+  asker?: JevAsker,
+): Promise<Run> {
   const started = Date.now();
-  const outcome = await runReview({ plan: scenario.plan, transcriptPath: path, windowStart: 0, config, asker, reverse: true });
-  if (outcome.kind === 'skipped') {
-    return { system: 'jev', run, failed: outcome.reason, seconds: (Date.now() - started) / 1000, inputTokens: 0, outputTokens: 0 };
-  }
+  const outcome = await runReview({ plan: scenario.plan, transcriptPath: path, windowStart: 0, config, asker, reverse });
+  const failed = (reason: string, seconds: number): Run => ({ system: 'jev', run, failed: reason, seconds, inputTokens: 0, outputTokens: 0 });
+  if (outcome.kind === 'skipped') return failed(outcome.reason, (Date.now() - started) / 1000);
   const { result } = outcome;
+  if (result.reverseError) return failed(`reverse check failed: ${result.reverseError}`, result.elapsedMs / 1000);
   const statements = toStatements(collectSources(readTranscript(path)), config.maxStatements).statements;
   const mapped = outcomeOfReview(result, statements);
   return {
@@ -71,6 +79,7 @@ async function runSonnet(scenario: Scenario, path: string, config: Config, run: 
       run,
       outcome: mapped,
       score: score(scenario, mapped),
+      raw: reply.text,
       seconds: reply.ms / 1000,
       inputTokens: reply.inputTokens,
       outputTokens: reply.outputTokens,
@@ -94,6 +103,7 @@ function runFile(scenario: Scenario, run: Run): string {
   for (const item of run.outcome?.flagged ?? []) lines.push(`- ${item.conclusive ? '' : '(inconclusive) '}${item.text}`);
   if (!run.outcome?.flagged.length) lines.push('- none');
   lines.push('', `Expected not from the user: ${(scenario.expect.notFromUser ?? []).join('; ') || 'none'}`, '');
+  if (run.raw !== undefined) lines.push('Reply as given:', '', '````', run.raw, '````', '');
   return lines.join('\n');
 }
 
@@ -136,7 +146,7 @@ export async function bench(options: {
     const path = buildTranscript(scenario);
     const runs: Run[] = [];
     for (let run = 1; run <= options.runs; run += 1) {
-      runs.push(await runJev(scenario, path, config, run, options.asker));
+      runs.push(await runJev(scenario, path, config, run, true, options.asker));
       runs.push(await runSonnet(scenario, path, config, run, options.claude));
     }
     for (const run of runs) writeFileSync(join(dir, `${scenario.name}-${run.system}-${run.run}.md`), runFile(scenario, run));
@@ -174,7 +184,7 @@ export async function scale(options: { sizes: number[]; runs: number; asker?: Je
     const path = buildTranscript(scenario);
     const config = loadConfig(size);
     for (let run = 1; run <= options.runs; run += 1) {
-      const result = await runJev(scenario, path, config, run, options.asker);
+      const result = await runJev(scenario, path, config, run, false, options.asker);
       writeFileSync(join(dir, `${scenario.name}-jev-${run}.md`), runFile(scenario, result));
       const correct = result.score ? `${result.score.correct}/${result.score.total}` : '-';
       lines.push(
