@@ -170,7 +170,13 @@ plugin says so, names the setting, and uses its default.
 - Code and other non-prose files mentioned with `@` are never used. To have
   a file checked, mention it in plain words, such as "follow the rules in
   @spec.md".
-- A conversation too long to classify in one request is not reviewed.
+- If your statements are too long to classify in one request, the review is
+  skipped and says so. This is unlikely at the default `max_statements`.
+- A change of mind can be misread. A choice you later replaced may still be
+  checked, and a plan that follows your newer choice can be sent back. Saying
+  what you are replacing helps, such as "use JavaScript instead of Python".
+- The longer the conversation, the more likely it is that something missing
+  from the plan is judged as covered.
 - Plans made by subagents are not reviewed.
 - A plan Claude passes in is Claude's own copy and can differ slightly from
   what you saw. One longer than about 32,000 characters may not go through;
