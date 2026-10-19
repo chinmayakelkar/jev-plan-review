@@ -24,6 +24,7 @@ function noteFor(verdict: Verdict): string {
   return [
     ...(verdict.status === 'reflected' ? [] : [verdict.status]),
     ...(verdict.conclusive ? [] : ['unsure']),
+    ...(verdict.reversed === undefined ? [] : ['you may have changed this later']),
   ].join(', ');
 }
 

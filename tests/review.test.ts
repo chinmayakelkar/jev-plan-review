@@ -296,6 +296,56 @@ describe('review', () => {
   });
 });
 
+describe('the change-of-mind check', () => {
+  const pythonThenJs = toStatements([
+    { kind: 'prompt', text: 'Use Python for the script.' },
+    { kind: 'prompt', text: 'Actually, use JavaScript instead.' },
+  ]).statements;
+  const against = { contradicted: (id: string) => (id === 's1' ? 0.95 : 0.02) };
+
+  it('sets aside a statement the user later reversed', async () => {
+    const result = await review('Write it in JavaScript.', pythonThenJs, fakeJev({ ...against, reversed: () => 0.95 }));
+    expect(result.verdicts.map((verdict) => verdict.id)).toEqual(['s2']);
+    expect(result.ignored).toBe(1);
+  });
+
+  it('marks a verdict unsure when Jev is unsure the user reversed it', async () => {
+    const result = await review('Write it in JavaScript.', pythonThenJs, fakeJev({ ...against, reversed: () => 0.6 }));
+    expect(result.verdicts.find((verdict) => verdict.id === 's1')).toMatchObject({
+      status: 'contradicted',
+      conclusive: false,
+      actionable: false,
+      reversed: 0.6,
+    });
+  });
+
+  it('keeps the verdict when Jev says the user did not reverse it', async () => {
+    const result = await review('Write it in JavaScript.', pythonThenJs, fakeJev(against));
+    expect(result.verdicts.find((verdict) => verdict.id === 's1')).toMatchObject({ conclusive: true, actionable: true });
+    expect(result.verdicts.find((verdict) => verdict.id === 's1')).not.toHaveProperty('reversed');
+  });
+
+  it('asks nothing more when every statement is reflected', async () => {
+    const seen: Seen[] = [];
+    await review('Write it in JavaScript.', pythonThenJs, fakeJev({}, seen));
+    expect(seen.flatMap((s) => s.questions).filter((name) => name.startsWith('reversed_'))).toEqual([]);
+  });
+
+  it('asks only about statements with something the user said after them', async () => {
+    const { statements } = toStatements([
+      { kind: 'prompt', text: 'Use Redis for the cache.' },
+      { kind: 'prompt', text: 'Keep entries for a day.' },
+      { kind: 'document', text: 'Cache entries expire after one hour.', label: 'spec.md' },
+    ]);
+    const seen: Seen[] = [];
+    await review('A plan.', statements, fakeJev({ contradicted: () => 0.95 }, seen));
+    expect(seen.flatMap((s) => s.questions).filter((name) => name.startsWith('reversed_'))).toEqual([
+      'reversed_s1',
+      'reversed_s3',
+    ]);
+  });
+});
+
 describe('the reverse check', () => {
   const said = statementsOf('Use Postgres for storage.');
   const plan = '- Use Postgres for storage.\n- Add a Redis cache for sessions.\n- Assume users run Node 20.\n- Run the tests.';

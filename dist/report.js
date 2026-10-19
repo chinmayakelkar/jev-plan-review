@@ -15,6 +15,7 @@ function noteFor(verdict) {
     return [
         ...(verdict.status === 'reflected' ? [] : [verdict.status]),
         ...(verdict.conclusive ? [] : ['unsure']),
+        ...(verdict.reversed === undefined ? [] : ['you may have changed this later']),
     ].join(', ');
 }
 export function summaryLine(result) {

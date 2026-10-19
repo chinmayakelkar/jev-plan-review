@@ -89,6 +89,15 @@ describe('renderText', () => {
     expect(lines[2]).toBe('YES  97%  requirement  Use tabs for indentation');
   });
 
+  it('says when the user may have changed a statement later', () => {
+    const result = resultOf([
+      verdict({ text: 'Use Python', status: 'contradicted', confidence: 0.9, conclusive: false, reversed: 0.6 }),
+    ]);
+    expect(renderText(result).split('\n')[1]).toBe(
+      'NO   90%  requirement  Use Python  [contradicted, unsure, you may have changed this later]',
+    );
+  });
+
   it('puts a note under the summary', () => {
     expect(renderText(mixed, { note: 'Still open.' }).split('\n')[1]).toBe('Still open.');
   });

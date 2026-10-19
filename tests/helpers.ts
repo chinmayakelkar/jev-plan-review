@@ -64,6 +64,7 @@ export interface Script {
   contradicted?: (id: string, plan: string) => number;
   asked?: (id: string) => number;
   file?: (id: string) => number;
+  reversed?: (id: string) => number;
 }
 
 export function fakeJev(script: Script = {}, seen: Seen[] = []): JevAsker {
@@ -90,6 +91,7 @@ export function fakeJev(script: Script = {}, seen: Seen[] = []): JevAsker {
             ];
           }
           if (type === 'file') return [name, { noul: script.file?.(id) ?? 0.95 }];
+          if (type === 'reversed') return [name, { noul: script.reversed?.(id) ?? 0.02 }];
           if (type === 'asked') return [name, { noul: script.asked?.(id) ?? 0.95 }];
           if (type === 'covered') return [name, { noul: script.covered?.(id, plan) ?? 0.95 }];
           return [name, { noul: script.contradicted?.(id, plan) ?? 0.02 }];

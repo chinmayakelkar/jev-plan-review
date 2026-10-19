@@ -25,6 +25,9 @@ const CLASSIFY_CONTEXT =
 const VERIFY_CONTEXT =
   'An implementation plan is being checked against what the user said while it was prepared. `plan` is the plan, or one part of it when `plan_part` is present. `turns` lists statements the user made; `said_before_by_assistant` only explains what the user was replying to. Each question asks whether the plan text shown here reflects, or conflicts with, one statement. Judge only from the plan text shown.';
 
+const RECHECK_CONTEXT =
+  'A user and a coding assistant are preparing an implementation plan. `turns` lists, oldest first, what the user said, split into numbered statements. `said_before_by_assistant` is there only to explain what the user was replying to. Turns with `from_document` hold rules from files the user gave; they are listed after everything the user typed, whatever the time the file was given. Each question asks whether the user later changed their mind about one statement.';
+
 export const PLAN_KINDS = ['requirement', 'constraint', 'decision', 'assumption'] as const;
 export type PlanKind = (typeof PLAN_KINDS)[number];
 
@@ -83,6 +86,7 @@ export interface Verdict extends Item, Score {
   confidence: number;
   conclusive: boolean;
   actionable: boolean;
+  reversed?: number;
 }
 
 export interface Unclear extends Statement {
@@ -262,23 +266,32 @@ function judgeKind(
   return { kind };
 }
 
-async function classify(
+function conversationState(
   statements: readonly Statement[],
-  asker: JevAsker,
+  context: string,
   options: ReviewOptions,
-): Promise<{ items: Item[]; unclear: Unclear[] }> {
-  if (statements.length === 0) return { items: [], unclear: [] };
+): { state: object; stateTokens: number } {
   const limit = Math.floor(options.maxRequestTokens * 0.8);
   let state: object = {};
   let stateTokens = Infinity;
   for (const chars of CLASSIFY_CONTEXT_CHARS) {
-    state = { context: CLASSIFY_CONTEXT, turns: turnsFor(statements, chars) };
+    state = { context, turns: turnsFor(statements, chars) };
     stateTokens = tokensOf(state);
     if (stateTokens <= limit) break;
   }
   if (stateTokens > limit) {
     throw new Error(`the conversation is too long to check (~${stateTokens} tokens)`);
   }
+  return { state, stateTokens };
+}
+
+async function classify(
+  statements: readonly Statement[],
+  asker: JevAsker,
+  options: ReviewOptions,
+): Promise<{ items: Item[]; unclear: Unclear[] }> {
+  if (statements.length === 0) return { items: [], unclear: [] };
+  const { state, stateTokens } = conversationState(statements, CLASSIFY_CONTEXT, options);
   const batches = pack(
     statements,
     (statement) => tokensOf(classifyQuestion(statement)),
@@ -431,6 +444,53 @@ async function checkPlan(
   return { items, unclear, checked: checked.length, overLimit: skipped };
 }
 
+function reversedQuestion(id: string): JevQuestions {
+  return {
+    [`reversed_${id}`]: {
+      type: 'noul',
+      instructions: `Something the user typed after statement ${id} reverses or replaces it, so the user no longer wants what ${id} says. A later statement that only adds detail to ${id} or repeats it does not count, and a rule from a file never reverses what the user typed`,
+    },
+  };
+}
+
+// A statement Jev failed to see as superseded would otherwise be judged against a plan that follows the user's newer choice.
+async function recheck(
+  statements: readonly Statement[],
+  verdicts: readonly Verdict[],
+  asker: JevAsker,
+  options: ReviewOptions,
+): Promise<Verdict[]> {
+  const ownIndexes = statements.flatMap((statement, index) => (statement.source === 'document' ? [] : [index]));
+  const latestOwn = ownIndexes.length ? ownIndexes[ownIndexes.length - 1] : -1;
+  const order = new Map(statements.map((statement, index) => [statement.id, index]));
+  const candidates = verdicts.filter(
+    (verdict) =>
+      verdict.status !== 'reflected' &&
+      (verdict.source === 'document' ? latestOwn >= 0 : (order.get(verdict.id) ?? Infinity) < latestOwn),
+  );
+  if (candidates.length === 0) return [...verdicts];
+  const { state, stateTokens } = conversationState(statements, RECHECK_CONTEXT, options);
+  const batches = pack(
+    candidates,
+    (verdict) => tokensOf(reversedQuestion(verdict.id)),
+    options.maxRequestTokens - stateTokens - REQUEST_OVERHEAD_TOKENS,
+  );
+  const reversed = new Map<string, number>();
+  await Promise.all(
+    batches.map(async (batch) => {
+      const questions: JevQuestions = Object.assign({}, ...batch.map((verdict) => reversedQuestion(verdict.id)));
+      const { answers } = await asker.ask(state, questions);
+      for (const verdict of batch) reversed.set(verdict.id, noulAnswer(answers, `reversed_${verdict.id}`));
+    }),
+  );
+  return verdicts.flatMap((verdict): Verdict[] => {
+    const chance = reversed.get(verdict.id) ?? 0;
+    if (chance >= options.minConfidence) return [];
+    if (chance < 0.5) return [verdict];
+    return [{ ...verdict, conclusive: false, actionable: false, reversed: chance }];
+  });
+}
+
 export function decide(item: Item, score: Score, minConfidence: number): Verdict {
   const contradicted = score.contradicted >= 0.5;
   const reflected = !contradicted && score.covered >= 0.5;
@@ -510,10 +570,11 @@ export async function review(
   const { items, unclear } = await classify(statements, counted, resolved);
   const parts = splitPlan(plan, resolved.maxPlanTokens);
   const scores = await verify(parts, items, counted, resolved);
-  const verdicts = items.map((item) =>
+  const decided = items.map((item) =>
     decide(item, scores.get(item.id) ?? { covered: 0, contradicted: 0 }, resolved.minConfidence),
   );
-  const compared = new Set([...items, ...unclear].map((statement) => statement.id));
+  const verdicts = await recheck(statements, decided, counted, resolved);
+  const compared = new Set([...verdicts, ...unclear].map((statement) => statement.id));
   let fromPlan: FromPlan | undefined;
   let reverseError: string | undefined;
   if (resolved.reverse) {
@@ -527,7 +588,7 @@ export async function review(
     verdicts,
     unclear,
     statements: statements.length,
-    ignored: statements.length - items.length - unclear.length,
+    ignored: statements.length - verdicts.length - unclear.length,
     requests,
     planParts: parts.length,
     usage,
