@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { judgePrompt, outcomeOfClaude } from '../examples/bench/claude.js';
 import { buildTranscript, type Scenario } from '../examples/bench/scenario.js';
 import { outcomeOfReview, score, type Outcome } from '../examples/bench/score.js';
 import type { ReviewResult } from '../src/review.js';
@@ -111,5 +112,52 @@ describe('benchmark scenarios', () => {
       flaggedWrong: 1,
       unflaggedWrong: 1,
     });
+  });
+});
+
+describe('sonnet baseline', () => {
+  const statements = [
+    statement('s1', 'Use Python for the tool.'),
+    statement('s2', 'Export to CSV.'),
+    statement('s3', 'Add a dry run flag.'),
+  ];
+  const items = [
+    { id: 'p1', text: 'Write the tool in Python.' },
+    { id: 'p2', text: 'Cache results in Redis.' },
+  ];
+  const plan = '- Write the tool in Python.\n- Cache results in Redis.';
+
+  it('asks Sonnet about every statement and plan item', () => {
+    const prompt = judgePrompt(statements, items, plan);
+    for (const { id, text } of [...statements, ...items]) {
+      expect(prompt).toContain(id);
+      expect(prompt).toContain(text);
+    }
+    expect(prompt).toContain(JSON.stringify(plan));
+  });
+
+  it("reads Sonnet's verdicts", () => {
+    const answer = {
+      statements: {
+        s1: { kind: 'superseded', verdict: 'missing', confidence: 95 },
+        s2: { kind: 'requirement', verdict: 'missing', confidence: 70 },
+      },
+      plan_items: { p1: { from_user: true, confidence: 90 }, p2: { from_user: false, confidence: 85 } },
+    };
+    const reply = `Here is my answer:\n\`\`\`json\n${JSON.stringify(answer)}\n\`\`\`\nDone.`;
+    expect(outcomeOfClaude(reply, statements, items)).toEqual({
+      statements: [
+        { text: 'Use Python for the tool.', actual: 'set_aside', conclusive: true },
+        { text: 'Export to CSV.', actual: 'missing', conclusive: false },
+        { text: 'Add a dry run flag.', actual: 'set_aside', conclusive: true },
+      ],
+      flagged: [{ text: 'Cache results in Redis.', conclusive: true }],
+    });
+  });
+
+  it('treats an unreadable reply as unsure', () => {
+    const outcome = outcomeOfClaude('Sorry, I cannot help.', statements, items);
+    expect(outcome.statements.map((s) => s.actual)).toEqual(['unclear', 'unclear', 'unclear']);
+    expect(outcome.flagged).toEqual([]);
   });
 });
