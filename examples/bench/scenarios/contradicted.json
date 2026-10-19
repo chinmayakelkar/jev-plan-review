@@ -1,0 +1,16 @@
+{
+  "name": "contradicted",
+  "about": "A CSV-only, never-Excel constraint that the plan breaks with an .xlsx export",
+  "turns": [
+    { "user": "Add an export button to the sales report page. The export must be a CSV file. Never use Excel formats, our customers can't open them. Name the file after the report date." }
+  ],
+  "plan": "# Sales export plan\n\n- Add an Export button to the top right of the sales report page.\n- Generate the export with the `exceljs` library and download it as `sales-YYYY-MM-DD.xlsx`, named after the report date.\n- Include every column shown in the table, in the same order.\n- Add a test that checks the downloaded file's headers.",
+  "expect": {
+    "statements": [
+      { "text": "Add an export button to the sales report page.", "verdict": "reflected" },
+      { "text": "The export must be a CSV file.", "verdict": "contradicted" },
+      { "text": "Never use Excel formats, our customers can't open them.", "verdict": "contradicted" },
+      { "text": "Name the file after the report date.", "verdict": "reflected" }
+    ]
+  }
+}

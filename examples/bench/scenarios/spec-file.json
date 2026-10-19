@@ -1,0 +1,26 @@
+{
+  "name": "spec-file",
+  "about": "A spec given as rules and a README given as background: the spec's rules are checked, the README's are not",
+  "files": {
+    "docs/limiter-spec.md": "# Limiter\n\n- Allow at most 100 requests per minute for each API key.\n- Return status 429 with a Retry-After header when the limit is hit.\n- Keep the counters in Redis so all servers share them.\n",
+    "README.md": "# Acme API\n\nAcme API serves product data to our mobile apps. It runs on Node 20 behind an nginx proxy. The team deploys it every Friday afternoon.\n"
+  },
+  "turns": [
+    { "user": "Implement the rate limiter described in @docs/limiter-spec.md. For background on the project, see @README.md." },
+    { "file": "docs/limiter-spec.md" },
+    { "file": "README.md" }
+  ],
+  "plan": "# Rate limiter plan\n\n- Add a middleware in `src/limiter.js` that counts requests per API key in Redis.\n- Allow 100 requests per key in each one-minute window.\n- When the limit is hit, return 429 with a `Retry-After` header giving the seconds left.\n- Register the middleware before the routes in `src/app.js`.\n- Add tests with a fake Redis client.",
+  "expect": {
+    "statements": [
+      { "text": "Implement the rate limiter described in @docs/limiter-spec.md.", "verdict": "reflected" },
+      { "text": "For background on the project, see @README.md.", "verdict": "set_aside" },
+      { "text": "Allow at most 100 requests per minute for each API key.", "verdict": "reflected" },
+      { "text": "Return status 429 with a Retry-After header when the limit is hit.", "verdict": "reflected" },
+      { "text": "Keep the counters in Redis so all servers share them.", "verdict": "reflected" },
+      { "text": "Acme API serves product data to our mobile apps.", "verdict": "set_aside" },
+      { "text": "It runs on Node 20 behind an nginx proxy.", "verdict": "set_aside" },
+      { "text": "The team deploys it every Friday afternoon.", "verdict": "set_aside" }
+    ]
+  }
+}

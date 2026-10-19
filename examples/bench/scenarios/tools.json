@@ -1,0 +1,20 @@
+{
+  "name": "tools",
+  "about": "Remarks about Claude Code, plan mode and this plugin mixed with real requirements; the remarks are set aside",
+  "turns": [
+    { "user": "Plan a health check endpoint for our Express API. It should return the app version and the database status. Don't ask me for permission each time you run npm test. Use plan mode for this one. When the jev plan review report shows up, just keep going." },
+    { "assistant": "Should the endpoint require authentication?" },
+    { "user": "No, keep it public." }
+  ],
+  "plan": "# Health check plan\n\n- Add `GET /health` to the Express app in `src/routes/health.js`.\n- Return JSON with `version` from `package.json` and `database` as `ok` or `down`.\n- Check the database with a `SELECT 1` query that times out after two seconds.\n- Leave the route public, outside the auth middleware.\n- Add a supertest test for both database states.",
+  "expect": {
+    "statements": [
+      { "text": "Plan a health check endpoint for our Express API.", "verdict": "reflected" },
+      { "text": "It should return the app version and the database status.", "verdict": "reflected" },
+      { "text": "Don't ask me for permission each time you run npm test.", "verdict": "set_aside" },
+      { "text": "Use plan mode for this one.", "verdict": "set_aside" },
+      { "text": "When the jev plan review report shows up, just keep going.", "verdict": "set_aside" },
+      { "text": "No, keep it public.", "verdict": "reflected" }
+    ]
+  }
+}

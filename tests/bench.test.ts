@@ -1,15 +1,18 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { longScenario } from '../examples/bench/long.js';
 import { judgePrompt, outcomeOfClaude, type ClaudeRunner } from '../examples/bench/claude.js';
 import { bench } from '../examples/bench/run.js';
-import { buildTranscript, type Scenario } from '../examples/bench/scenario.js';
+import { buildTranscript, loadScenarios, type Scenario } from '../examples/bench/scenario.js';
 import { outcomeOfReview, score, type Outcome } from '../examples/bench/score.js';
-import type { ReviewResult } from '../src/review.js';
-import type { Statement } from '../src/statements.js';
+import { planItems, type ReviewResult } from '../src/review.js';
+import { toStatements, type Statement } from '../src/statements.js';
 import { collectSources, readTranscript } from '../src/transcript.js';
 import { fakeJev, tempDir } from './helpers.js';
 
+const SCENARIOS = join(dirname(fileURLToPath(import.meta.url)), '..', 'examples', 'bench', 'scenarios');
 const statement = (id: string, text: string): Statement => ({ id, source: 'prompt', text, turn: 0 });
 
 describe('benchmark scenarios', () => {
@@ -188,5 +191,32 @@ describe('benchmark runner', () => {
     expect(text).toMatch(/\| tiny \| jev \|/);
     expect(text).toMatch(/\| tiny \| sonnet \|/);
     expect(existsSync(join(dirname(summary), 'tiny-jev-1.md'))).toBe(true);
+  });
+});
+
+describe('benchmark answer keys', () => {
+  const scenarios = [...loadScenarios(SCENARIOS), longScenario(50)];
+  const produced = (s: Scenario): string[] =>
+    toStatements(collectSources(readTranscript(buildTranscript(s))), 1000).statements.map((x) => x.text);
+
+  it('has the ten scenario files and the long one', () => {
+    expect(scenarios.length).toBe(11);
+  });
+
+  it.each(scenarios.map((s) => [s.name, s] as const))('every key statement in %s is one the splitter produces', (_, s) => {
+    const texts = produced(s);
+    expect(s.expect.statements.map((x) => x.text).sort()).toEqual([...texts].sort());
+  });
+
+  it.each(scenarios.map((s) => [s.name, s] as const))('every plan item key in %s matches exactly one plan item', (_, s) => {
+    const { items } = planItems(s.plan, 1000);
+    for (const part of [...(s.expect.notFromUser ?? []), ...(s.expect.fromUser ?? [])]) {
+      expect(items.filter((item) => item.text.includes(part)).map((item) => item.text), part).toHaveLength(1);
+    }
+  });
+
+  it('long scenarios are stable', () => {
+    expect(longScenario(150)).toEqual(longScenario(150));
+    expect(longScenario(150).expect.statements).toHaveLength(150);
   });
 });

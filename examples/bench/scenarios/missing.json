@@ -1,0 +1,17 @@
+{
+  "name": "missing",
+  "about": "Two requirements the plan leaves out: the cache and the not-found message",
+  "turns": [
+    { "user": "Build a small web page that shows the current weather for a city. Let the user type the city name. Show the temperature in both Celsius and Fahrenheit. Cache each city's result for ten minutes. Show a friendly message when the city is not found." }
+  ],
+  "plan": "# Weather page plan\n\n- Create `index.html` with a text box for the city name and a Search button.\n- On search, call the Open-Meteo geocoding API, then its forecast API for the current weather.\n- Show the temperature in Celsius and convert it to Fahrenheit beside it.\n- Style the page with a small `style.css`.\n- Test by hand with London, Tokyo and Lima.",
+  "expect": {
+    "statements": [
+      { "text": "Build a small web page that shows the current weather for a city.", "verdict": "reflected" },
+      { "text": "Let the user type the city name.", "verdict": "reflected" },
+      { "text": "Show the temperature in both Celsius and Fahrenheit.", "verdict": "reflected" },
+      { "text": "Cache each city's result for ten minutes.", "verdict": "missing" },
+      { "text": "Show a friendly message when the city is not found.", "verdict": "missing" }
+    ]
+  }
+}

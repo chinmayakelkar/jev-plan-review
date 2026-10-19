@@ -1,0 +1,21 @@
+{
+  "name": "answers",
+  "about": "Decisions given as AskUserQuestion answers; the plan leaves out the retention answer",
+  "turns": [
+    { "user": "Plan a backup job for the uploads folder." },
+    { "ask": { "question": "Where should backups go?", "answer": "An S3 bucket" } },
+    { "ask": { "question": "How often should it run?", "answer": "Every night at 2am" } },
+    { "ask": { "question": "How long should backups be kept?", "answer": "30 days" } },
+    { "user": "Thanks, that covers it." }
+  ],
+  "plan": "# Uploads backup plan\n\n- Write `scripts/backup-uploads.sh` that copies the `uploads/` folder to the S3 bucket `acme-uploads-backup` with `aws s3 sync`.\n- Schedule it with cron to run every night at 02:00.\n- Log each run to `/var/log/backup-uploads.log`.\n- Send an email alert when a run fails.",
+  "expect": {
+    "statements": [
+      { "text": "Plan a backup job for the uploads folder.", "verdict": "reflected" },
+      { "text": "Asked: \"Where should backups go?\" — the user answered: \"An S3 bucket\"", "verdict": "reflected" },
+      { "text": "Asked: \"How often should it run?\" — the user answered: \"Every night at 2am\"", "verdict": "reflected" },
+      { "text": "Asked: \"How long should backups be kept?\" — the user answered: \"30 days\"", "verdict": "missing" },
+      { "text": "Thanks, that covers it.", "verdict": "set_aside" }
+    ]
+  }
+}

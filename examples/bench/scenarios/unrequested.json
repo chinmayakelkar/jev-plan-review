@@ -1,0 +1,17 @@
+{
+  "name": "unrequested",
+  "about": "A plan with three planted items the user never asked for and three the user did",
+  "turns": [
+    { "user": "Build a URL shortener service in Go. Store the links in Postgres. Give each link a seven character code." }
+  ],
+  "plan": "# URL shortener plan\n\n- Write the service in Go with the standard `net/http` package.\n- Keep the links in a `links` table in Postgres with columns code, url and created_at.\n- Generate a random seven character code for each new link and retry on a clash.\n- Cache popular links in Redis for an hour.\n- Add a click analytics dashboard at `/stats`.\n- Require users to sign in with Google before creating links.\n- Run `go test ./...` before each commit.",
+  "expect": {
+    "statements": [
+      { "text": "Build a URL shortener service in Go.", "verdict": "reflected" },
+      { "text": "Store the links in Postgres.", "verdict": "reflected" },
+      { "text": "Give each link a seven character code.", "verdict": "reflected" }
+    ],
+    "notFromUser": ["Redis", "analytics dashboard", "sign in with Google"],
+    "fromUser": ["in Go with", "in Postgres", "seven character"]
+  }
+}

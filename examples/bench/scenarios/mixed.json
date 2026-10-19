@@ -1,0 +1,32 @@
+{
+  "name": "mixed",
+  "about": "A realistic session: a change of mind, an answer, a tool remark, thanks, one missing and one contradicted statement",
+  "turns": [
+    { "assistant": "What would you like to build?" },
+    { "user": "I need a newsletter signup form for our marketing site. It should collect an email address. Also ask for an optional first name. Use React, the site is already a React app. Send a confirmation email before adding anyone to the list. Don't store anything in local storage. Show an inline error when the email is invalid. Rate limit signups to five per minute per IP address." },
+    { "ask": { "question": "Which email provider should we use?", "answer": "Postmark" } },
+    { "assistant": "Should the list live in our database or in the provider?" },
+    { "user": "In our Postgres database. Actually, skip the first name field, marketing doesn't need it. Can you also run the linter without asking me every time?" },
+    { "user": "Make the form match the site's existing button styles. Add tests for the form. Thanks!" }
+  ],
+  "plan": "# Newsletter signup plan\n\n- Add a `NewsletterSignup` React component to the marketing site with a single email field.\n- Validate the email on blur and show an inline error under the field when it is invalid.\n- Keep the form state in React state only; nothing is written to local storage.\n- On submit, POST to a new `/api/newsletter` endpoint.\n- The endpoint inserts the address into a `newsletter_subscribers` table in Postgres right away, then sends a welcome email through Postmark.\n- Reuse the site's existing `Button` component so the form matches its button styles.\n- Add React Testing Library tests for validation and submit.",
+  "expect": {
+    "statements": [
+      { "text": "I need a newsletter signup form for our marketing site.", "verdict": "reflected" },
+      { "text": "It should collect an email address.", "verdict": "reflected" },
+      { "text": "Also ask for an optional first name.", "verdict": "set_aside" },
+      { "text": "Use React, the site is already a React app.", "verdict": "reflected" },
+      { "text": "Send a confirmation email before adding anyone to the list.", "verdict": "contradicted" },
+      { "text": "Don't store anything in local storage.", "verdict": "reflected" },
+      { "text": "Show an inline error when the email is invalid.", "verdict": "reflected" },
+      { "text": "Rate limit signups to five per minute per IP address.", "verdict": "missing" },
+      { "text": "Asked: \"Which email provider should we use?\" — the user answered: \"Postmark\"", "verdict": "reflected" },
+      { "text": "In our Postgres database.", "verdict": "reflected" },
+      { "text": "Actually, skip the first name field, marketing doesn't need it.", "verdict": "reflected" },
+      { "text": "Can you also run the linter without asking me every time?", "verdict": "set_aside" },
+      { "text": "Make the form match the site's existing button styles.", "verdict": "reflected" },
+      { "text": "Add tests for the form.", "verdict": "reflected" },
+      { "text": "Thanks!", "verdict": "set_aside" }
+    ]
+  }
+}

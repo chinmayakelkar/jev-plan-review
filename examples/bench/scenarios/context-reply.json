@@ -1,0 +1,22 @@
+{
+  "name": "context-reply",
+  "about": "Short replies that only make sense with the assistant's question before them",
+  "turns": [
+    { "user": "Help me plan a command line tool for converting images." },
+    { "assistant": "Which output format should be the default? 1) PNG 2) WebP 3) JPEG" },
+    { "user": "the second one" },
+    { "assistant": "Should it support resize, crop and rotate?" },
+    { "user": "yes, all three" },
+    { "assistant": "Should it overwrite the input files?" },
+    { "user": "no" }
+  ],
+  "plan": "# Image converter plan\n\n- Build `imgconv`, a Node command line tool using the `sharp` library.\n- Convert to WebP by default; `--format png|jpeg|webp` picks another format.\n- Support `--resize WxH`, `--crop WxH+X+Y` and `--rotate DEG` options.\n- Write the output to a new file beside the input, never overwriting the input.",
+  "expect": {
+    "statements": [
+      { "text": "Help me plan a command line tool for converting images.", "verdict": "reflected" },
+      { "text": "the second one", "verdict": "reflected" },
+      { "text": "yes, all three", "verdict": "reflected" },
+      { "text": "no", "verdict": "reflected" }
+    ]
+  }
+}

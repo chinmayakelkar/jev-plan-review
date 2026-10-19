@@ -1,0 +1,19 @@
+{
+  "name": "plain",
+  "about": "Requirements and constraints that the plan all reflects",
+  "turns": [
+    { "user": "Build a command line todo app in Python. Store the todos in a SQLite file. Each todo needs a title and an optional due date. Keep it to the standard library only." },
+    { "assistant": "Should completed todos be deleted or kept?" },
+    { "user": "Keep them, but hide them from the default list." }
+  ],
+  "plan": "# Todo CLI plan\n\n- Write `todo.py` in Python using only the standard library (`argparse`, `sqlite3`).\n- Store todos in `todos.db`, a SQLite file, with columns id, title, due_date (nullable) and done.\n- `todo add \"title\" [--due YYYY-MM-DD]` adds a todo; the due date is optional.\n- `todo done <id>` marks a todo complete; completed todos stay in the database.\n- `todo list` shows only open todos; `todo list --all` includes completed ones.\n- Add unit tests with `unittest` and run them.",
+  "expect": {
+    "statements": [
+      { "text": "Build a command line todo app in Python.", "verdict": "reflected" },
+      { "text": "Store the todos in a SQLite file.", "verdict": "reflected" },
+      { "text": "Each todo needs a title and an optional due date.", "verdict": "reflected" },
+      { "text": "Keep it to the standard library only.", "verdict": "reflected" },
+      { "text": "Keep them, but hide them from the default list.", "verdict": "reflected" }
+    ]
+  }
+}

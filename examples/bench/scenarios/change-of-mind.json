@@ -1,0 +1,18 @@
+{
+  "name": "change-of-mind",
+  "about": "Python first, then JavaScript: the first choice is set aside, the second is checked",
+  "turns": [
+    { "user": "Write a script that renames photos by the date they were taken. Use Python for it." },
+    { "assistant": "I'll plan a Python script that reads the EXIF dates with Pillow." },
+    { "user": "Actually, use JavaScript instead, we already have Node on every machine. Keep the original file extension." }
+  ],
+  "plan": "# Photo renamer plan\n\n- Write `rename-photos.js`, a Node script.\n- Read each photo's EXIF DateTimeOriginal with the `exifr` package.\n- Rename each file to `YYYY-MM-DD_HH-MM-SS` and keep its original extension.\n- Skip files that have no EXIF date and list them at the end.",
+  "expect": {
+    "statements": [
+      { "text": "Write a script that renames photos by the date they were taken.", "verdict": "reflected" },
+      { "text": "Use Python for it.", "verdict": "set_aside" },
+      { "text": "Actually, use JavaScript instead, we already have Node on every machine.", "verdict": "reflected" },
+      { "text": "Keep the original file extension.", "verdict": "reflected" }
+    ]
+  }
+}
