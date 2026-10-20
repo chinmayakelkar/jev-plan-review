@@ -85,6 +85,22 @@ service is busy. If the key is missing, Jev fails, or an answer is malformed,
 the hook tells Claude the check was skipped and lets the plan through. It
 never blocks because of its own trouble.
 
+## Compared with asking Claude
+
+| Per review | Jev | Claude Sonnet 5.5 | Jev is |
+| --- | --- | --- | --- |
+| Cost | $0.00026 | $0.012 | **47× cheaper** |
+| Time | 0.6 s | 2.6 s | **4.6× faster** |
+| Items judged correctly | 97% | 99% | about as accurate |
+| Plans sent back by mistake | 0 | 0 | |
+| Plan items you never asked for, found | 3 of 3 | 3 of 3 | |
+
+Measured on 10 hand-written planning sessions with known answers (missing
+and contradicted items, a change of mind, question answers, a spec file,
+tool remarks, a mix), 2 runs each. Sonnet got the same conversation, plan
+and criteria through `claude -p`. Jev is priced at $0.042 per million input
+tokens; output is free.
+
 ## Install
 
 You need Claude Code 2.1.271 or newer, Node.js 18 or newer, and an API key
