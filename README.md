@@ -99,7 +99,9 @@ Measured on 10 hand-written planning sessions with known answers (missing
 and contradicted items, a change of mind, question answers, a spec file,
 tool remarks, a mix), 2 runs each. Sonnet got the same conversation, plan
 and criteria through `claude -p`. Jev is priced at $0.042 per million input
-tokens; output is free.
+tokens; output is free. The benchmark code and scenarios are on the
+[`benchmark`](https://github.com/chinmayakelkar/jev-plan-review/tree/benchmark)
+branch; run it with `npm run bench -- --out <dir>`.
 
 ## Install
 
