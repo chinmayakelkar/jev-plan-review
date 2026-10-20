@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { collectSources, DENY_MARKER, latestPlanModePlan, readTranscript, REPORT_MARKER } from '../src/transcript.js';
@@ -259,8 +259,8 @@ describe('collectSources and text Claude Code wrote', () => {
   });
 });
 
-describe('a real captured session', () => {
-  it.skipIf(!existsSync(fixture))('yields the prompt, the mentioned file and the rejection feedback', () => {
+describe('a Claude Code session file', () => {
+  it('yields the prompt, the mentioned file and the rejection feedback', () => {
     const sources = collectSources(readTranscript(fixture));
     expect(sources.map((source) => source.kind)).toEqual(
       expect.arrayContaining(['prompt', 'plan_feedback', 'document']),
@@ -275,7 +275,7 @@ describe('a real captured session', () => {
       'The export must be CSV, never Excel.',
     );
     expect(sources.some((source) => source.text.includes(DENY_MARKER))).toBe(false);
-    expect(sources.some((source) => source.text.includes('probe context for Claude'))).toBe(false);
+    expect(sources.some((source) => source.text.includes('redacted'))).toBe(false);
   });
 });
 

@@ -453,7 +453,8 @@ function reversedQuestion(id: string): JevQuestions {
   };
 }
 
-// A statement Jev failed to see as superseded would otherwise be judged against a plan that follows the user's newer choice.
+// A statement the classifier missed as superseded would otherwise be judged
+// against a plan that follows the user's newer choice.
 async function recheck(
   statements: readonly Statement[],
   verdicts: readonly Verdict[],

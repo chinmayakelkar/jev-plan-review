@@ -15,10 +15,10 @@ describe('splitText', () => {
 
   it('splits numbered answers written on one line and keeps their numbers', () => {
     expect(
-      splitText('2) All three kinds of plans 3) User prompts and pasted documents, never CLAUDE.md'),
+      splitText('2) Export to CSV only 3) Add a --help flag, never a config file'),
     ).toEqual([
-      '2) All three kinds of plans',
-      '3) User prompts and pasted documents, never CLAUDE.md',
+      '2) Export to CSV only',
+      '3) Add a --help flag, never a config file',
     ]);
   });
 

@@ -309,7 +309,8 @@ function reversedQuestion(id) {
         },
     };
 }
-// A statement Jev failed to see as superseded would otherwise be judged against a plan that follows the user's newer choice.
+// A statement the classifier missed as superseded would otherwise be judged
+// against a plan that follows the user's newer choice.
 async function recheck(statements, verdicts, asker, options) {
     const ownIndexes = statements.flatMap((statement, index) => (statement.source === 'document' ? [] : [index]));
     const latestOwn = ownIndexes.length ? ownIndexes[ownIndexes.length - 1] : -1;

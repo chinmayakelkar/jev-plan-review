@@ -1,7 +1,6 @@
 const TOKEN_PIECES = /[A-Za-z]+|\d+|[^\sA-Za-z\d]/g;
 
-// No tokenizer: a word costs one token per six letters, a digit half, any other
-// symbol nine tenths, all scaled up because Jev's own counts ran about a fifth higher.
+// No tokenizer; scaled up because Jev counts about a fifth more tokens than this estimate.
 export const TOKEN_SCALE = 1.25;
 
 export function estimateTokens(text: string): number {
