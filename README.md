@@ -35,9 +35,8 @@ It runs in two ways:
 
 ## How it works
 
-```
-what you said → statements → sorted by kind → checked against the plan → table, or plan sent back
-```
+Each review collects what you said, splits it into statements, sorts them,
+and checks each one against the plan.
 
 1. **Collect.** Your prompts, your `AskUserQuestion` answers, feedback on a
    plan you rejected, text you pasted, and prose files you mentioned with `@`
