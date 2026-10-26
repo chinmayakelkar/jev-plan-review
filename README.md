@@ -197,4 +197,4 @@ network check.
 
 MIT. The Jev client and the token estimate are adapted from
 [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction),
-also MIT.
+also MIT. See `NOTICE`.
