@@ -1,16 +1,26 @@
 # jev-plan-review
 
-A Claude Code plugin that checks a plan against what you said while it was
-being prepared. Every requirement, constraint, assumption and decision you
-stated is put to TypeSafe's Jev model with two questions: does the plan
-reflect it, and does the plan conflict with it. You get a compact table with a
-yes/no and a confidence score for each item.
+A Claude Code plugin that helps make sure your plan keeps every requirement,
+constraint, assumption and decision you stated. TypeSafe's Jev model checks
+each one against the plan and flags anything missing or contradicted, with a
+confidence score for each item, in under a second.
 
-## What and why
+![jev-plan-review checking a plan](docs/screenshot.png)
 
-While a plan takes shape you make many small calls: "use Postgres", "never
-touch the generated folder", "CSV, not Excel". The finished plan is long, and
-reading all of it to confirm each call was captured is slow.
+## The problem it solves
+
+As Claude drafts a plan, you make many small calls: "use Postgres", "never
+touch the generated folder", "CSV, not Excel". Checking that the finished
+plan kept them all is harder than it looks:
+
+- **Reading it yourself** is slow, and one missed line is easy to overlook.
+- **Asking another agent** costs time and tokens on every plan.
+- **Claude fills gaps for you.** Its assumptions and judgment calls end up in
+  the plan before you've seen them, and they may not match what you want.
+
+jev-plan-review checks every call you made against the plan for a fraction
+of a cent. The review command also lists the
+assumptions and decisions in the plan that you did not ask for or agree to.
 
 It runs in two ways:
 
@@ -23,71 +33,39 @@ It runs in two ways:
   table, and also lists what the plan decided that you never said. It never
   changes the plan.
 
-```
-jev-plan-review: 3 of 5 items reflected in the plan, 1 missing, 1 contradicted (1 unsure)
-NO   93%  constraint   It must be written in Python.  [contradicted]
-NO   88%  requirement  Add a CSV export command.  [missing]
-YES  62%  preference   Keep the tool small.  [unsure]
-YES  91%  requirement  Build a command line tool that exports reports.
-YES  97%  decision     Actually, use Postgres instead of SQLite.
-```
-
-Each row is answered on its own. An answer Jev gave with less confidence than
-your threshold is marked `unsure`.
-
 ## How it works
 
-1. **Collect.** The plugin reads the session transcript and gathers what you
-   said: your prompts, your `AskUserQuestion` answers, the feedback you gave
-   when you rejected a plan, text you pasted, and prose files (`.md`, `.txt`
-   and similar) you mentioned with `@`, if Jev is sure you gave them as
-   something the plan must follow. It never uses `CLAUDE.md` or files Claude
-   chose to read. Only what came after the last `/clear` and the last
-   approved plan counts. Answers you give while one of this plugin's commands
-   runs are skipped. A statement made during any other slash command is sent
-   with that command's name. The report names which files were used, set
-   aside, or unsure.
-2. **Split.** Each source is broken into short statements, one per bullet,
-   numbered item or sentence. Claude's message just before your reply is
-   kept beside it as context only, so a short answer still makes sense; it
-   is never an item.
-3. **Classify.** Jev sorts each statement: requirement, constraint, decision,
-   assumption, preference, superseded, about tools, or not actionable. The
-   chances it gives the five real kinds are added up. At your confidence
-   threshold or above, the statement goes on. Below 50% it is set aside, as a
-   question, thanks, something you later reversed, or something about settings
-   or tools. In between it is *unclear*: it is listed as `not checked` and no
-   further question is asked about it.
-4. **Verify.** For each item that went on, Jev answers two `noul` questions with
-   the plan in front of it: the plan reflects this, and the plan conflicts
-   with this. A plan too long for one request is checked in parts.
-5. **Decide.** Conflict at 50% or more means *contradicted*. Otherwise reflect
-   at 50% or more means *yes*. Otherwise *no*, with confidence of one minus
-   the reflect score. An answer below your confidence threshold is marked
-   *unsure*.
-6. **Reverse check (command only).** The plan is split into items and Jev
-   sorts them like your statements; routine steps and non-actionable items
-   are dropped. For each remaining item Jev is asked whether you asked for or
-   agreed to it. Items it leans towards "not from you" are listed under
-   "In the plan, not from you".
-7. **Revise (hook only).** Items Jev is sure are missing or contradicted are
-   sent back to Claude to fix, at most twice unless you change
-   `max_revisions`. Unsure items are never sent back. The count resets when
-   you approve a plan, run `/clear`, or Claude starts a new plan file. After
-   the last revision the plan is let through with the open items marked.
-8. **Report.** The hook gives Claude the table when it lets a plan through,
-   and the plan waits for you as usual. To see the table, ask Claude what
-   the review found. The command shows you the tables directly. Either way,
-   the full report is saved to `reports/` in the plugin's data folder.
+```
+what you said → statements → sorted by kind → checked against the plan → table, or plan sent back
+```
 
-Requests are paced under TypeSafe's rate limits and retried twice when the
-service is busy. If the key is missing, Jev fails, or an answer is malformed,
-the hook tells Claude the check was skipped and lets the plan through. It
-never blocks because of its own trouble.
+1. **Collect.** Your prompts, your `AskUserQuestion` answers, feedback on a
+   plan you rejected, text you pasted, and prose files you mentioned with `@`
+   as something the plan must follow. Never `CLAUDE.md` or files Claude chose
+   to read. Only what came after the last `/clear` and the last approved plan
+   counts.
+2. **Split.** One statement per bullet, numbered item or sentence. Claude's
+   message just before your reply goes along as context, so a short answer
+   still makes sense.
+3. **Classify.** Jev sorts each statement as a requirement, constraint,
+   decision, assumption or preference. Questions, thanks, choices you later
+   replaced and remarks about tools are set aside. A statement Jev can't
+   place is listed as `not checked`.
+4. **Verify.** Jev answers two questions for each statement: does the plan
+   reflect it, and does the plan conflict with it. An answer below your
+   `min_confidence` is marked `unsure`.
+5. **Revise (hook).** Items Jev is sure are missing or contradicted go back
+   to Claude to fix, up to `max_revisions` times. Unsure items never do.
+6. **Report.** The hook gives Claude the table; to see it, ask Claude what
+   the review found. The command shows it to you directly. The full report
+   is saved to `reports/` in the plugin's data folder.
 
-## Compared with asking Claude
+If the key is missing or Jev fails, the hook tells Claude the review was
+skipped and lets the plan through.
 
-| Per review | Jev | Claude Sonnet 5.5 | Jev is |
+## Benchmarked against Claude
+
+| Per review | Jev | Claude Sonnet 5.5 | With Jev |
 | --- | --- | --- | --- |
 | Cost | $0.00026 | $0.012 | **47× cheaper** |
 | Time | 0.6 s | 2.6 s | **4.6× faster** |
@@ -95,15 +73,13 @@ never blocks because of its own trouble.
 | Plans sent back by mistake | 0 | 0 | |
 | Plan items you never asked for, found | 3 of 3 | 3 of 3 | |
 
-Measured on 10 hand-written planning sessions with known answers (missing
-and contradicted items, a change of mind, question answers, a spec file,
-tool remarks, a mix), 2 runs each. Sonnet got the same conversation, plan
-and criteria through `claude -p`. Jev is priced at $0.042 per million input
-tokens; output is free. The benchmark code and scenarios are on the
+Measured on 10 hand-written planning sessions with known answers, two runs
+each, with Sonnet given the same conversation, plan and questions. The
+scenarios and code are on the
 [`benchmark`](https://github.com/chinmayakelkar/jev-plan-review/tree/benchmark)
-branch; run it with `npm run bench -- --out <dir>`.
+branch.
 
-## Install
+## Quick start
 
 You need Claude Code 2.1.271 or newer, Node.js 18 or newer, and an API key
 from TypeSafe or OpenRouter.
@@ -172,39 +148,37 @@ Change the settings in `/config`, where each one has its own row.
 A change takes effect for the next review. If a value can't be used, the
 plugin says so, names the setting, and uses its default.
 
+## Privacy
+
+- Each review sends your statements, Claude's message before each of your
+  replies, the plan, and the name and opening text of each file you
+  mentioned with `@` to TypeSafe, or to OpenRouter if you chose it. Nothing
+  else from your project is sent.
+- Your key is read from your settings or shell and used only in the request
+  to that provider. The plugin never stores or logs it.
+- Reports stay on your computer, in the plugin's data folder.
+
 ## Limitations
 
-- A confidence score is not a proof. The table tells you where to look; you
-  still decide.
-- The approval screen does not show anything from the hook: not the table,
-  and not a note that the review was skipped. Ask Claude what the review
-  found, and check that your API key is set.
-- Statements are split at bullets, numbered items and sentence ends; code
-  blocks are skipped. An odd abbreviation or initial can split a sentence
-  wrongly, and a statement that needs its neighbours may be judged poorly.
-- At most `max_statements` statements are checked per review. When there
-  are more, your own words are kept ahead of words from files, and your
-  newest words ahead of your oldest.
-- Code and other non-prose files mentioned with `@` are never used. To have
-  a file checked, mention it in plain words, such as "follow the rules in
-  @spec.md".
-- If your statements are too long to classify in one request, the review is
-  skipped and says so. This is unlikely at the default `max_statements`.
-- A change of mind can be misread. A choice you later replaced may still be
-  checked, and a plan that follows your newer choice can be sent back. Saying
-  what you are replacing helps, such as "use JavaScript instead of Python".
-- The longer the conversation, the more likely it is that something missing
-  from the plan is judged as covered.
-- Plans made by subagents are not reviewed.
-- A plan Claude passes in is Claude's own copy and can differ slightly from
-  what you saw. One longer than about 32,000 characters may not go through;
-  save it to a file and give the path.
-- The reverse check runs only in the command, not in the hook.
-- The hook has 180 seconds; a review that takes longer does not finish.
-- Images are not read.
-- The transcript file layout is not a published Claude Code contract; a
-  Claude Code update can break collection.
-- Token sizes are estimates from character counts, not a tokenizer.
+- The scores are a guide, not a guarantee. The table shows you where to
+  look; you still decide.
+- When jev-plan-review's plan-mode hook reviews a plan, its table goes to
+  Claude, not to the approval screen. Ask Claude
+  if you'd like to see it.
+- A change of mind can be misread. Saying what you are replacing helps, such
+  as "use JavaScript instead of Python".
+- In very long conversations, an item missing from the plan is more often
+  judged as covered.
+- At most `max_statements` statements are checked per review. Your own
+  words come ahead of words from files, and newer words ahead of older ones.
+- A file is used only if you mention it with `@` as something to follow,
+  such as "follow the rules in @spec.md". Code files are never used.
+- Plans made by subagents are not reviewed, and the hook does not list what
+  the plan decided that you never said; only the command does.
+- If a review takes longer than the hook's 180 seconds, the plan goes
+  through without it.
+- The plugin reads Claude Code's session files, whose format isn't
+  documented, so a Claude Code update may need a plugin update.
 
 ## Development
 
